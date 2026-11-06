@@ -12,7 +12,8 @@ loop needs (start, play, end; others only if needed), mood, and the studio's tas
 ## 2. Three real directions (Claude, ~10 min)
 
 Three **genuinely different** directions — palette, shape language, type, mood.
-Static HTML mockups of each key screen at a 1440×900 desktop canvas in
+Static HTML mockups of each key screen: the game stage (portrait, phone-shaped for a
+mobile-inspired game) centred on a 1440×900 desktop canvas, in
 `design/directions/<a|b|c>/`, with real game content.
 
 ## 3. Push into Figma (Claude, ~2 min)
