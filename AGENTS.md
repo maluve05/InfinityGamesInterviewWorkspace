@@ -47,6 +47,15 @@ exists), `PLAN.md` and `TASKS.md`. Check `processes/` for an existing workflow a
 2. **Design first, build backwards.** The chosen Figma frames are the spec. Build
    each screen to match its frame and compare against it before calling it done.
    Never improvise UI that the design does not show.
+   **Design gate (absolute):** no UI code — `public/index.html`, CSS, view,
+   screens, controller, rendering, HUD — before the owner has picked a direction
+   and Claude has locked it (`**Design locked:**` filled in `PLAN.md`,
+   `design/tokens.css`, a reference PNG in `design/frames/`). Until then only
+   logic is built: engine, config, RNG, storage, audio, tests. If the owner asks
+   to "get a game first", remind them of this rule and offer the fast path
+   (two directions in ~10 minutes) instead; never work around it. A Claude Code
+   hook (`tools/design-gate.mjs`) blocks UI writes and `npm run verify` refuses
+   to deploy until the design is locked.
 3. **Something live at all times.** Deploy as soon as the first playable exists,
    then after every milestone. Never break the last good deploy.
 4. **The brief wins.** Start screen, levels, scores and fanfare are defaults, not

@@ -18,6 +18,14 @@ isn't locked, lock it first.
 
 ## Files to create (in this order)
 
+**Two stages.** Stage 1 (logic: `config.js`, `rng.js`, `engine.js`, `storage.js`,
+`audio.js`, tests) can start as soon as the contract is locked, in parallel with
+`design-first`. **Stage 2 (UI: `screens.js`, `view.js`, `main.js`, `index.html`,
+`debug.js`, CSS) waits for the design gate** — the owner's pick locked in `PLAN.md`,
+`design/tokens.css` and reference frames (`AGENTS.md`). A hook blocks stage-2 writes
+before that; don't build a "temporary" UI to see it running — run the engine tests
+instead.
+
 | File | Responsibility | Must not |
 | --- | --- | --- |
 | `public/src/config.js` | Frozen `CONFIG`: every tuning number (sizes, speeds, timings, scoring, colours that are gameplay-relevant) | contain logic |

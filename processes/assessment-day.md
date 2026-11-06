@@ -43,7 +43,12 @@ other agent is opened in a parent folder — it treats this repo as scratch spac
 ## 14:40–14:55 · Pick and refine (you) → lock (Claude)
 
 You pick a direction and refine it — by hand in Figma or by prompting Claude.
-Claude reads the frames once and writes tokens, specs and reference PNGs.
+Claude reads the frames once and writes tokens, specs and reference PNGs, then
+fills `**Design locked:**` in `PLAN.md` with the time and your pick.
+
+**Design gate:** nothing visual is built before this point — not a "quick playable",
+not a temporary HTML page. Behind schedule? Use the fast path (two directions,
+~10 minutes), never skip it. The hook and `npm run verify` enforce it.
 
 ## 14:55–15:50 · Build backwards (Claude)
 

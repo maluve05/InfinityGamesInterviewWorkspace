@@ -3,6 +3,8 @@
 > Per-game plan. Claude keeps it current; any agent or a fresh context window must
 > be able to resume from this file alone. Clock times are local (window 14:00–18:00).
 
+**Design locked:** _not yet — no UI code until the owner picks a direction (AGENTS.md design gate)_
+
 **Status:** not started · **Live URL:** https://infinity-games-interview.malvinchitswamatombo.workers.dev (placeholder) · **Last good deploy:** placeholder, version b833ca7a
 
 ## Outcome

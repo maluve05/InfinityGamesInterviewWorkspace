@@ -62,6 +62,11 @@ Read the chosen frames **once** (reads are rate-limited) and save:
 `design/tokens.css` (copy into `public/` when building), `design/specs/<screen>.md`
 (layout, elements, states, motion, cursor/hover states), `design/frames/<screen>.png`.
 If the read fails, ask the owner to export PNGs into `inbox/design/`.
+Then write `**Design locked:** <time> — owner picked <direction>` in `PLAN.md`.
+This opens the design gate: before it, no UI code exists (a hook blocks it).
+
+**Fast path when behind:** two directions instead of three, Play screen only plus
+the start/end states as variants on one frame, ~10 minutes. Never skip the pick.
 
 ## 6. Build backwards
 

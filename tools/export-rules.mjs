@@ -21,6 +21,8 @@ const sources = [
   ['antigravity-rules', path.join(root, '.agent', 'rules')],
   ['skills', path.join(root, '.agents', 'skills')],
   ['mcp/claude-project.mcp.json', path.join(root, '.mcp.json')],
+  ['claude-project/settings.json', path.join(root, '.claude', 'settings.json')],
+  ['claude-project/design-gate.mjs', path.join(root, 'tools', 'design-gate.mjs')],
   ['mcp/antigravity-mcp_config.json', path.join(root, '.agents', 'mcp_config.json')],
   ['claude-user/settings.json', path.join(home, '.claude', 'settings.json')],
   ['claude-user/CLAUDE.md', path.join(home, '.claude', 'CLAUDE.md')],

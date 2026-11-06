@@ -17,6 +17,8 @@ const check = async (name, fn) => {
 await check('rules', async () => {
   assert.match(await read('CLAUDE.md'), /^@AGENTS\.md/m, 'CLAUDE.md must import AGENTS.md');
   assert.match(await read('.agent/rules/workspace.md'), /AGENTS\.md/, 'Antigravity rule must point to AGENTS.md');
+  assert.match(await read('AGENTS.md'), /Design gate \(absolute\)/, 'AGENTS.md must keep the design gate rule');
+  assert.match(await read('.claude/settings.json'), /design-gate\.mjs/, '.claude/settings.json must run the design-gate hook');
 });
 
 await check('skills', async () => {
@@ -64,7 +66,7 @@ if (preWindow) {
   // new game-independent tool before the window means adding it to this list.
   await check('tools/ holds only known game-independent tools', async () => {
     const known = ['check-template.mjs', 'dispatch-worker.mjs', 'export-claude-log.mjs', 'export-rules.mjs',
-      'export-worker-log.mjs', 'metrics.mjs', 'poly-pizza.mjs', 'serve.mjs', 'smoke.mjs', 'sync-skills.mjs'];
+      'export-worker-log.mjs', 'metrics.mjs', 'poly-pizza.mjs', 'design-gate.mjs', 'design-gate-lib.mjs', 'serve.mjs', 'smoke.mjs', 'sync-skills.mjs'];
     const unknown = (await readdir(path.join(root, 'tools'), { recursive: true }))
       .map((f) => f.replaceAll('\\', '/')).filter((f) => !known.includes(f));
     assert.deepEqual(unknown, [], `unknown files in tools/ (move them out, or add a game-independent tool to the list in check-template.mjs): ${unknown.join(', ')}`);
@@ -76,6 +78,11 @@ if (process.argv.includes('--has-tests')) {
   await check('engine tests exist', async () => {
     const tests = (await readdir(path.join(root, 'tests'), { recursive: true })).filter((f) => f.endsWith('.test.mjs'));
     assert.ok(tests.length > 0, 'tests/ has no *.test.mjs — write at least one engine test before deploying');
+  });
+  await check('design locked before deploy', async () => {
+    const { designLocked } = await import('./design-gate-lib.mjs');
+    const s = await designLocked(root);
+    assert.ok(s.locked, 'the design is not locked (PLAN.md "Design locked:", design/tokens.css, design/frames/*.png) — no deploy before the owner picks a design');
   });
 }
 

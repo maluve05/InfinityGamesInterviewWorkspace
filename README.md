@@ -29,7 +29,8 @@ Full runbook: [processes/assessment-day.md](processes/assessment-day.md).
 | `npm run serve` | Serve `public/` at http://localhost:5173 |
 | `npm test` | Headless tests in `tests/` (written inside the window) |
 | `npm run smoke` / `npm run shots` | Real desktop browser check (1440×900); `shots` saves screenshots to `design/compare/` |
-| `npm run verify` | At least one `*.test.mjs` exists, then `test` + `smoke` — required before every deploy |
+| `npm run verify` | Design locked + at least one `*.test.mjs`, then `test` + `smoke` — required before every deploy |
+| `node tools/design-gate.mjs --status` | Is the design locked? (UI code is blocked until it is — see `AGENTS.md`) |
 | `npm run deploy` | Verify, then deploy `public/` to Cloudflare |
 | `npm run worker -- T3` | Send task T3 from `TASKS.md` to the Gemini worker |
 | `npm run logs` | Whole prompt log at the freeze: Claude sessions active from 7 Nov 13:30 (`.env` values redacted), worker transcripts, rules files |

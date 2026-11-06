@@ -5,6 +5,10 @@ description: Build and extend a zero-build HTML5 browser game prototype for a de
 
 # Game prototyper
 
+**Design gate first:** no UI code until the owner has picked a direction and the
+design is locked (`AGENTS.md`, `design-first`). Before that, build and test logic only.
+If asked to "get it playable first", say the rule and offer the two-direction fast path.
+
 There is no starter: create the structure with `game-scaffold`, the look with
 `design-first`, the sound with `game-audio`, the feel with `game-feel`. Read the
 contract in `PLAN.md` before changing code.
