@@ -1,24 +1,39 @@
-# Dispatching the Gemini worker
+# Dispatching the worker
 
-Claude (admin) hands bounded, non-visual tasks to Gemini 3.8 Flash High through
-the Antigravity CLI, headless, from its own terminal. You don't copy anything.
+Claude (admin) hands bounded, non-visual tasks to Gemini 3.8 Flash High. Default:
+the **Antigravity IDE** through the mailbox `claude antigravity and others/` — your
+only job is to say "claude has work for you". Backup: the Antigravity CLI headless.
 
-## Flow
+## Flow (default: mailbox + Antigravity IDE)
 
-1. Claude writes the task in `TASKS.md` (format at the top of that file):
-   `may write`, `may run`, `must not touch`, `done when`, `context`.
-2. Claude runs `npm run worker -- T3` as a background shell command, so it keeps
-   working on UI while the worker runs. Tasks with disjoint `may write` lists can
-   run at the same time.
-3. `tools/dispatch-worker.mjs`:
-   - reads the task, builds the prompt (task + AGENTS.md worker rules + report format),
-   - turns `may write` / `may run` into scoped permission rules
-     (`write_file(<path>)`, `command(regex:^<cmd>( .*)?$)`),
-   - runs `agy -p … --model gemini-3.8-flash-high --output-format stream-json`,
-   - saves the prompt and the JSON result to `logs/worker/`,
-   - **fails loudly if `denied_actions` is not empty** or the report is missing.
-4. Claude reads `inbox/reports/T3.md`, checks the diff (`git diff`) and re-runs
-   the task's "done when" check itself. Only then is the task marked `done`.
+1. Claude writes `claude antigravity and others/tasks/T<n>.md` (template in that
+   folder's README): `may write`, `may run`, `must not touch`, `done when`,
+   `context`. It adds a row to `TASKS.md`.
+2. Claude starts `npm run mailbox -- wait T<n>` in the background and asks you to
+   tell Antigravity "claude has work for you". Claude keeps working meanwhile.
+3. Antigravity (rule: `.agent/rules/workspace.md`) takes each `todo` task one at a
+   time, writes `reports/T<n>.md`, sets `status: review` or `blocked`, and says
+   which tasks are done. You approve its terminal commands as it asks.
+4. The wait ends and wakes Claude, which reads the report, checks `git diff`
+   (anything outside `may write` is reverted) and re-runs the "done when" check
+   itself. Only then is the task `done`.
+
+**IDE setup:** open the IDE on this folder only; set agent terminal commands to ask
+before running (not auto-run). The IDE has no allow-list like the CLI's
+`--settings`, so the fence is the rule file, your approval of each command, and
+Claude's diff review. An earlier IDE session wrote stray scripts into `tools/` and
+started a public web server; `npm run check:pre-window` now fails on unknown tools,
+and the README's fence forbids servers, installs and helper scripts.
+
+## Backup: Antigravity CLI headless
+
+`npm run worker -- T<n>` (Claude runs it in the background) reads the same task
+file, turns `may write` / `may run` into scoped permission rules
+(`write_file(<path>)`, `command(regex:^<cmd>( .*)?$)`), runs `agy -p … --model
+gemini-3.8-flash-high --output-format stream-json`, saves the prompt and
+transcript to `logs/worker/`, and fails loudly on denied actions or a missing
+report. A single unlisted command ends a headless run (see the probes below) —
+list every command a task needs, or use the IDE.
 
 ## Rules learned in testing (2026-11-05)
 
@@ -54,7 +69,8 @@ What this means for writing tasks:
 - Workers summarise a little loosely (the probe listed 18 of 19 skill folders,
   missing `grill-me`). Review stays mandatory.
 - Probe runs go straight to `agy`, not `npm run worker`, so they leave nothing in
-  `logs/worker/`; delete probe reports from `inbox/reports/` afterwards.
+  `logs/worker/`; delete probe reports afterwards (they used `inbox/reports/`, which
+  the mailbox has since replaced).
 
 ## First real run (2026-11-05)
 
@@ -64,8 +80,9 @@ know: the tests hard-coded a value another script later renames. Review is not o
 
 ## Good worker tasks
 
-Engine tests, level/data files, deploys, asset conversion (ffmpeg), library
-research summaries, prompt-log export, REFLECTION running notes, README updates.
+Engine tests, level/data files, asset conversion (ffmpeg), library research
+summaries, prompt-log export, REFLECTION running notes, README updates. Claude
+does deploys itself.
 
 ## Not worker tasks
 
@@ -74,5 +91,6 @@ contract, anything the owner must decide.
 
 ## Fallback
 
-If `agy` breaks: open the Antigravity IDE in this folder and type
-"Do task T3 in TASKS.md and follow AGENTS.md". Same report location.
+If the IDE breaks: Claude runs the task headless (`npm run worker -- T<n>`). If
+both fail: Freebuff opened on this folder, told "claude has work for you — follow
+`claude antigravity and others/README.md`". Same mailbox, same reports.

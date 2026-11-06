@@ -36,8 +36,10 @@ Fallback exporter: the community `antigravity-history` tool.
 
 ## 4. Anything else
 
-Antigravity IDE chats (if used): its Export button, or `antigravity-history`, or
-screenshots as a last resort. Figma MCP calls appear in the Claude log. ElevenLabs
+Antigravity IDE chats (the default worker): its Export button for each chat, saved
+to `logs/worker/ide/`, or `antigravity-history`, or screenshots as a last resort.
+The mailbox `claude antigravity and others/` (every task and report) is committed
+too — it is the readable record of each hand-off. Figma MCP calls appear in the Claude log. ElevenLabs
 generations: list prompts in `design/specs/audio.md`.
 
 ## Check before sending

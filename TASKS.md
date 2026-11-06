@@ -1,22 +1,15 @@
-# TASKS — worker queue
+# TASKS — board
 
-Claude writes tasks here; the Gemini worker executes them through
-`npm run worker -- <id>` (see `processes/worker-dispatch.md`). One task = one
-bounded, non-visual job. Claude reviews the report and diff before marking it done.
+One row per worker task. The task itself lives in
+`claude antigravity and others/tasks/T<n>.md` and the worker's report in
+`claude antigravity and others/reports/T<n>.md` (protocol and templates: that
+folder's `README.md`). Claude writes the task and the row, the owner tells the
+worker "claude has work for you", Claude reviews the report and the diff and
+only then marks the task `done`.
 
-## Format
+Status: `todo` → `doing` → `review` (worker finished) → `done` (Claude checked) ·
+or `blocked` / `failed` with the reason.
 
-```
-### T<n> — <short title>
-- status: todo | running | review | done | failed
-- goal: <what must be true afterwards>
-- may write: <files or folders, comma-separated>
-- may run: <commands, comma-separated: node, npm test, npx wrangler deploy>
-- must not touch: design/, stylesheets, public/index.html, rendering code
-- done when: <the check that proves it, e.g. `npm test` passes>
-- context: <files the worker should read first>
-```
-
-## Queue
-
-_Empty until the window opens._
+| Task | Title | For | Status | Notes |
+| --- | --- | --- | --- | --- |
+| | _Empty until the window opens._ | | | |

@@ -31,10 +31,13 @@ exists), `PLAN.md` and `TASKS.md`. Check `processes/` for an existing workflow a
 
 - **Claude Code is the admin.** It owns the brief, the design, every UI/visual
   file, the plan and all decisions, and it reviews everything a worker produces.
-- **Gemini (Antigravity, 3.8 Flash High) is the worker.** It takes bounded,
-  non-visual tasks from `TASKS.md`: tests, deploys, data files, research, asset
-  conversion, log export, first drafts of written answers. It writes its result
-  to `inbox/reports/<task-id>.md` and touches only the files its task lists.
+- **Gemini (Antigravity IDE, 3.8 Flash High) is the worker.** It takes bounded,
+  non-visual tasks through the mailbox `claude antigravity and others/`: tests,
+  data files, research, asset conversion, log export, first drafts of written
+  answers. Claude writes `tasks/T<n>.md`; the owner tells the worker "claude has
+  work for you"; the worker writes `reports/T<n>.md` and touches only the files
+  its task lists. Any other agent used as a worker (Antigravity CLI, Freebuff)
+  follows the same folder's README.
 - Workers never edit `design/`, stylesheets, `public/index.html` or rendering code
   unless their task explicitly names them.
 - The owner makes design and scope decisions. Agents look up facts themselves.
@@ -43,7 +46,10 @@ exists), `PLAN.md` and `TASKS.md`. Check `processes/` for an existing workflow a
 
 1. **Looks first; mechanics only need to be good enough.** A small, beautiful,
    coherent prototype of the core loop beats a complete but ugly one. When time is
-   short, cut mechanics, never polish.
+   short, cut mechanics, never polish. Optional work is ranked by what the
+   assessor sees (video, first two minutes of play) and each item has a time gate
+   in `PLAN.md`; unseen work (server telemetry, backends, accounts, consent
+   banners) is not built in the window — it becomes the "next 4 hours" answer.
 2. **Design first, build backwards.** The chosen Figma frames are the spec. Build
    each screen to match its frame and compare against it before calling it done.
    Never improvise UI that the design does not show.
@@ -93,7 +99,8 @@ exists), `PLAN.md` and `TASKS.md`. Check `processes/` for an existing workflow a
 | `design/` | Direction mockups, locked tokens, screen specs and reference frames |
 | `processes/` | Step-by-step workflows (assessment day, design, deploy, logs, video, submission) |
 | `knowledge/` | Lessons from earlier practice builds and tool quirks |
-| `inbox/` | Incoming email, Figma exports and worker reports (git-ignored) |
+| `inbox/` | Incoming email and Figma exports (git-ignored) |
+| `claude antigravity and others/` | Mailbox: Claude's tasks for workers and their reports (committed) |
 | `public/` | The deployed site (static, no build step). Blank until the window opens |
 | `tests/` | Headless tests, written inside the window |
 | `tools/` | Game-independent tooling: serve, smoke, worker dispatch, log export, skill sync, checks |

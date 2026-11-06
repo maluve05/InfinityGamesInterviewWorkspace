@@ -19,11 +19,19 @@ relevant `processes/` file first. State the outcome in one sentence.
 3. **Milestones with a time and a check.** Each milestone names its output and the
    observation that proves it (a passing command, a screen matching its frame, a
    URL loading on the phone). Use the assessment-day times when they apply.
-4. **Mandatory vs optional.** Separate what makes the game complete from
-   polish and extensions. When time is short, cut mechanics before visuals.
-5. **Worker tasks.** Move every bounded, non-visual job into `TASKS.md` using its
-   format (may write / may run / must not touch / done when / context). Tasks
-   that touch disjoint files can run in parallel — label them `[parallel]`.
+4. **Mandatory vs optional, ranked and gated.** Separate what makes the game
+   complete from polish and extensions. Rank every optional item by one test:
+   **will the assessor see it in the video or the first two minutes of play?**
+   Seen items (look, feel, sound, tutorial) come first; unseen ones (server
+   telemetry, backends, accounts, leaderboards, consent banners) come last and
+   usually become a Q6 answer instead. Give each item a **time gate** written now
+   ("only if the freeze checklist is green by 16:45"), so nobody decides mid-flow.
+   Fill the "Optional" table in `PLAN.md`. When time is short, cut mechanics
+   before visuals.
+5. **Worker tasks.** Write every bounded, non-visual job as a task file in
+   `claude antigravity and others/tasks/` (format in that folder's README) and
+   add a row to `TASKS.md`. Tasks that touch disjoint files can run in parallel —
+   label them `[parallel]`.
 
 ## Ask only what changes the work
 

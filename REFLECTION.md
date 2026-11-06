@@ -8,7 +8,8 @@
 
 A blank repository wired to Cloudflare, general AI rules and skill files (in the
 prompt log under `logs/rules/`), and game-independent tooling: a local server, a
-browser smoke test, log export, a script that hands tasks to a second AI agent, a
+browser smoke test, log export, a mailbox folder and script for handing tasks to a
+second AI agent, a
 telemetry metrics script and a Poly Pizza model search/download script. A
 `knowledge/` folder of research done with AI before the day: the studio and the
 charts, design principles, playtest notes, a production toolkit (game-feel values,

@@ -19,6 +19,8 @@ await check('rules', async () => {
   assert.match(await read('.agent/rules/workspace.md'), /AGENTS\.md/, 'Antigravity rule must point to AGENTS.md');
   assert.match(await read('AGENTS.md'), /Design gate \(absolute\)/, 'AGENTS.md must keep the design gate rule');
   assert.match(await read('.claude/settings.json'), /design-gate\.mjs/, '.claude/settings.json must run the design-gate hook');
+  assert.match(await read('.agent/rules/workspace.md'), /claude has work for you/, 'Antigravity rule must handle "claude has work for you"');
+  assert.match(await read('claude antigravity and others/README.md'), /If you are the worker/, 'mailbox README must keep the worker protocol');
 });
 
 await check('skills', async () => {
@@ -60,13 +62,17 @@ if (preWindow) {
     assert.deepEqual(code, [], `public/ must hold only the placeholder page, found: ${code.join(', ')}`);
     const tests = (await readdir(path.join(root, 'tests'))).filter((f) => f !== '.gitkeep');
     assert.deepEqual(tests, [], `tests/ must be empty before the window, found: ${tests.join(', ')}`);
+    for (const sub of ['tasks', 'reports']) {
+      const mail = (await readdir(path.join(root, 'claude antigravity and others', sub)).catch(() => [])).filter((f) => f !== '.gitkeep');
+      assert.deepEqual(mail, [], `the mailbox ${sub}/ must be empty before the window, found: ${mail.join(', ')}`);
+    }
   });
   // Only the game-independent tools below may exist before the window. Anything else
   // (e.g. a script another agent wrote to test some game) fails the check. Adding a
   // new game-independent tool before the window means adding it to this list.
   await check('tools/ holds only known game-independent tools', async () => {
     const known = ['check-template.mjs', 'dispatch-worker.mjs', 'export-claude-log.mjs', 'export-rules.mjs',
-      'export-worker-log.mjs', 'metrics.mjs', 'poly-pizza.mjs', 'design-gate.mjs', 'design-gate-lib.mjs', 'serve.mjs', 'smoke.mjs', 'sync-skills.mjs'];
+      'export-worker-log.mjs', 'mailbox.mjs', 'metrics.mjs', 'poly-pizza.mjs', 'design-gate.mjs', 'design-gate-lib.mjs', 'serve.mjs', 'smoke.mjs', 'sync-skills.mjs'];
     const unknown = (await readdir(path.join(root, 'tools'), { recursive: true }))
       .map((f) => f.replaceAll('\\', '/')).filter((f) => !known.includes(f));
     assert.deepEqual(unknown, [], `unknown files in tools/ (move them out, or add a game-independent tool to the list in check-template.mjs): ${unknown.join(', ')}`);
@@ -90,4 +96,4 @@ if (failures.length) {
   console.error(`Workspace check failed (${failures.length}):\n  ${failures.join('\n  ')}`);
   process.exit(1);
 }
-console.log(`Workspace check passed: rules, skills (no symlinks, no local paths), no secrets, docs present${preWindow ? ', no game code in public/ or tests/, and only known tools in tools/' : ''}.`);
+console.log(`Workspace check passed: rules (design gate, worker mailbox), skills (no symlinks, no local paths), no secrets, docs present${preWindow ? ', no game code in public/ or tests/, and only known tools in tools/' : ''}.`);

@@ -21,6 +21,7 @@
     "skills:sync": "node tools/sync-skills.mjs",
     "skills:check": "node tools/sync-skills.mjs --check",
     "worker": "node tools/dispatch-worker.mjs",
+    "mailbox": "node tools/mailbox.mjs",
     "logs:claude": "node tools/export-claude-log.mjs --since 2026-11-07T13:30",
     "logs:rules": "node tools/export-rules.mjs",
     "logs:worker": "node tools/export-worker-log.mjs",

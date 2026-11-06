@@ -1,4 +1,6 @@
-// Dispatch one TASKS.md task to the Gemini worker through the Antigravity CLI (headless).
+// Dispatch one mailbox task ("claude antigravity and others/tasks/T3.md") to the Gemini
+// worker through the Antigravity CLI, headless — the alternative to the owner telling the
+// Antigravity IDE "claude has work for you" (see that folder's README).
 //   npm run worker -- T3
 // Builds scoped permissions from the task's "may write" / "may run" fields, saves the
 // prompt and result to logs/worker/, and fails loudly on denied actions or a missing report.
@@ -12,19 +14,21 @@ const id = process.argv[2];
 const model = process.env.WORKER_MODEL || 'gemini-3.8-flash-high';
 const timeout = process.env.WORKER_TIMEOUT || '600s';
 if (!/^T\d+$/i.test(id ?? '')) {
-  console.error('Usage: npm run worker -- T<n>   (task id from TASKS.md)');
+  console.error('Usage: npm run worker -- T<n>   (task file in "claude antigravity and others/tasks/")');
   process.exit(2);
 }
 
-const tasksFile = path.join(root, 'TASKS.md');
-const tasks = await readFile(tasksFile, 'utf8');
-const section = tasks.match(new RegExp(`^### ${id}\\b[^\\n]*\\n([\\s\\S]*?)(?=^### |(?![\\s\\S]))`, 'm'));
-if (!section) { console.error(`Task ${id} not found in TASKS.md`); process.exit(2); }
+const MAILBOX = 'claude antigravity and others';
+const taskId = id.toUpperCase();
+const tasksFile = path.join(root, MAILBOX, 'tasks', `${taskId}.md`);
+const taskText = await readFile(tasksFile, 'utf8').catch(() => null);
+if (taskText === null) { console.error(`Task ${taskId} not found: ${path.relative(root, tasksFile)}`); process.exit(2); }
+const section = [taskText, taskText];
 const field = (name) => section[1].match(new RegExp(`^- ${name}:\\s*(.+)$`, 'm'))?.[1].trim() ?? '';
 const list = (name) => field(name).split(',').map((s) => s.trim().replace(/^`|`$/g, '')).filter(Boolean);
 
-const report = `inbox/reports/${id}.md`;
-const writes = [...new Set([...list('may write'), 'inbox/reports/'])];
+const report = `${MAILBOX}/reports/${taskId}.md`;
+const writes = [...new Set([...list('may write'), `${MAILBOX}/reports/`, `${MAILBOX}/tasks/${taskId}.md`])];
 const runs = list('may run');
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const allow = [
@@ -55,7 +59,7 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const logDir = path.join(root, 'logs', 'worker');
 await mkdir(logDir, { recursive: true });
 await writeFile(path.join(logDir, `${id}-${stamp}.prompt.md`), `${prompt}\n\n<!-- allow: ${JSON.stringify(allow)} -->\n`);
-await setStatus('running');
+await setStatus('doing');
 
 const agy = process.platform === 'win32' && process.env.LOCALAPPDATA
   ? path.join(process.env.LOCALAPPDATA, 'agy', 'bin', 'agy.exe')
@@ -120,8 +124,7 @@ function renderTranscript(taskId, modelName, sentPrompt, rules, evts, res) {
 }
 async function setStatus(status) {
   const current = await readFile(tasksFile, 'utf8');
-  const updated = current.replace(new RegExp(`(^### ${id}\\b[^\\n]*\\n(?:(?!^### )[\\s\\S])*?^- status:)[^\\n]*`, 'm'), `$1 ${status}`);
-  await writeFile(tasksFile, updated);
+  await writeFile(tasksFile, current.replace(/^- status:.*$/m, `- status: ${status}`));
 }
 function exists(p) { return access(p).then(() => true, () => false); }
 function run(cmd, argv) {

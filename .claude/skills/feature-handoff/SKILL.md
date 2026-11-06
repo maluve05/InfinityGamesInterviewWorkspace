@@ -24,6 +24,8 @@ Separate five states and never blur them: source baseline, selected proposal
 acceptance. A chosen mockup is not a shipped screen; a passing test is not a
 reviewed feel.
 
-For worker tasks, write the handoff as a `TASKS.md` entry (see its format). For
+For worker tasks, write the handoff as a task file in
+`claude antigravity and others/tasks/` (template in that folder's README) plus a
+`TASKS.md` row. For
 a fresh Claude context, update `PLAN.md` so it is resumable on its own and add a
 "Resume here" note at the top.

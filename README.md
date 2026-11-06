@@ -32,7 +32,8 @@ Full runbook: [processes/assessment-day.md](processes/assessment-day.md).
 | `npm run verify` | Design locked + at least one `*.test.mjs`, then `test` + `smoke` — required before every deploy |
 | `node tools/design-gate.mjs --status` | Is the design locked? (UI code is blocked until it is — see `AGENTS.md`) |
 | `npm run deploy` | Verify, then deploy `public/` to Cloudflare |
-| `npm run worker -- T3` | Send task T3 from `TASKS.md` to the Gemini worker |
+| `npm run mailbox` / `mailbox -- wait T3` | List worker tasks and reports in `claude antigravity and others/`; `wait` ends when T3's report is in (Claude runs it in the background) |
+| `npm run worker -- T3` | Backup: send task T3 to the Gemini worker headless (Antigravity CLI) |
 | `npm run logs` | Whole prompt log at the freeze: Claude sessions active from 7 Nov 13:30 (`.env` values redacted), worker transcripts, rules files |
 | `npm run logs:claude` / `logs:worker` / `logs:rules` | The three parts of `logs` on their own |
 | `npm run metrics` | Attempt metrics from the game's telemetry export, for the scale-or-kill call |

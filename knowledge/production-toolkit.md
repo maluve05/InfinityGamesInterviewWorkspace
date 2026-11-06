@@ -216,3 +216,35 @@ Its examples are Godot/Unity; the transferable rules:
   edges, motion), approve one hero asset at game scale before a set, and record
   provenance per asset (source, licence, tool/plan, prompt, edits). "Free" or
   "AI-generated" is not a licence.
+
+## 8. Telemetry for a prototype (researched 2026-11-06)
+
+**Decision:** keep telemetry local and small (`game-scaffold` → Telemetry,
+`npm run metrics`). No server pipeline, no community analytics skill.
+
+- **What publishers measure on a prototype** (Supersonic, *The 3 most important KPIs
+  for testing your hyper-casual prototype*): CPI (marketability; under ~$0.30 was a
+  good sign), **APPU** — average playtime per user in seconds, D7 above ~2,000 s
+  before soft launch — and D1 retention (~38%+ on Android). Playtime is the one a
+  local build can approximate: total `duration_ms` per session. Quote all of these
+  as "around" (see §5).
+- **Event model** (GameAnalytics docs, *Progression events*, *Design events*,
+  *Funnels*): progression events carry a status of start / complete / fail — our
+  `attempt_start` / `attempt_end` with `result` is the same shape. Put dynamic data
+  (time, score) in value fields, never in event names (cardinality). Funnels count
+  the first occurrence per player, so first-session steps (`ftue`) fire once each.
+- **Taxonomy advice** (Countly and similar vendor posts — opinion, not standard):
+  name events after what the player is trying to do, not the code; every event must
+  answer a written question; version the schema (`v: 1`).
+- **Level funnel and churn** (Azur Games, CrazyLabs posts): the useful views are a
+  per-level funnel and where players drop off — `npm run metrics` prints both the
+  attempt table and the first-session funnel, plus loss causes.
+- **Community skills checked** (skills.sh / claudskills listings):
+  `fcsouza/agent-skills` → `engineering-gameplay-analytics` (D1/D7/D30, funnels,
+  A/B hooks) needs PostgreSQL + Redis; `player-analytics` audits FTUE/monetisation
+  coverage of a live game. Both target live games with servers — wrong scale for a
+  4-hour prototype. Not installed; their useful ideas (funnel, cause, no personal
+  data in events) are in the recipe above.
+- **Scope rule:** a server pipeline with a consent banner is unseen by the assessor.
+  It belongs in the "next 4 hours" answer, with the metric and threshold you would
+  collect, not in the build.

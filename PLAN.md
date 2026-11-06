@@ -43,6 +43,16 @@ _One sentence: the inspiration game, the core loop proven, why it looks and feel
 | 17:00 | **Freeze** after polish rounds; verdict settled | Last deploy verified | |
 | 17:30 | Email sent | Sent | |
 
+## Optional (ranked; seen items first, each with a gate)
+
+| # | Item | Seen by the assessor? (video / first 2 min) | Only if … by | Status |
+| --- | --- | --- | --- | --- |
+| 1 | | | | |
+
+Unseen work (server telemetry, backend, accounts, leaderboards, consent) is not
+built in the window; it becomes the Q6 answer. Local telemetry is mandatory and
+small (`game-scaffold` → Telemetry).
+
 ## Screens (in flow order)
 
 | Screen | Figma frame | Built | Matches frame | Notes |

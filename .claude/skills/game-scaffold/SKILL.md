@@ -87,15 +87,31 @@ Below ~600 px wide, let the stage fill the screen (`100dvh`, no frame) — a few
 lines of CSS, no other mobile work. Pointer events for input (touch then works for
 free); `cursor` states for hoverable things; no hover-only information.
 
-## Telemetry (boundary events only)
+## Telemetry (local, boundary events only — ~5 minutes)
 
-Record two events per attempt into an in-memory list (persisted to localStorage,
-capped at ~500): `attempt_start` and `attempt_end` with `level`, `attempt_no`,
-`result` (`win`/`lose`/`quit`), `duration_ms`, `grade`, `resource_left`, `cause`,
-`ts`. Mark anything triggered by debug hooks with `debug: true`. Expose
+Write the questions first, in `PLAN.md`: usually "do new players reach the core
+moment?", "where do they fail, and why?", "do they replay?". Track only events that
+answer one of them.
+
+Record into an in-memory list (persisted to localStorage, capped at ~500), every
+event with `v: 1` and `ts`:
+- `session_start` — once per page load.
+- `attempt_start` / `attempt_end` with `level` (use 1 for an endless game),
+  `attempt_no`, `result` (`win`/`lose`/`quit`), `duration_ms`, `grade`,
+  `resource_left`, `cause` (on every loss: what ended it, from a short fixed list).
+- `ftue` with `step` (1, 2, 3 …) and `name` — once per first-session milestone:
+  tutorial steps, first core action, first signature moment. This is the funnel.
+
+Rules: dynamic values (score, time, counts) go in fields, never in event names;
+anything triggered by debug hooks gets `debug: true`. Expose
 `__GAME__.exportTelemetry()` returning JSON Lines; save it to
-`logs/telemetry/<name>.jsonl` and run `npm run metrics`. Telemetry stays on the
-device: no server, no personal data. See `knowledge/game-design-principles.md` §10.
+`logs/telemetry/<name>.jsonl` and run `npm run metrics` (attempts, win rate,
+durations, loss causes, first-session funnel).
+
+Telemetry stays on the device: no server, no personal data, so no consent banner
+is needed. A server pipeline (database, API, consent) is unseen work — it is not
+built in the window; name it in the "next 4 hours" answer. See
+`knowledge/game-design-principles.md` §10 and `knowledge/production-toolkit.md` §8.
 
 ## Pitfalls already paid for
 

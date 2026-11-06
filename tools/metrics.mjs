@@ -3,6 +3,8 @@
 //   { "type": "attempt_start", "level": 1, "attempt_no": 1, "ts": ... }
 //   { "type": "attempt_end", "level": 1, "attempt_no": 1, "result": "win"|"lose"|"quit",
 //     "duration_ms": 41000, "grade": 2, "resource_left": 3, "cause": "...", "ts": ... }
+//   { "type": "session_start", "ts": ... }
+//   { "type": "ftue", "step": 2, "name": "first_core_action", "ts": ... }   (first-session funnel)
 // Optional on any event: "player", "debug": true (debug events are excluded).
 //   npm run metrics -- path/to/telemetry.jsonl   (default: every logs/telemetry/*.jsonl)
 import { readFile, readdir } from 'node:fs/promises';
@@ -60,6 +62,26 @@ const rows = levels.map((level) => {
 
 console.log(`Telemetry: ${events.length} events · ${starts.length} attempts · ${players.size} player(s) · ${inputs.length} file(s)\n`);
 console.table(rows);
+const losses = ends.filter((e) => e.result !== 'win');
+if (losses.length) {
+  const causes = {};
+  for (const e of losses) causes[e.cause ?? 'unknown'] = (causes[e.cause ?? 'unknown'] ?? 0) + 1;
+  console.log('\nWhat ended the attempts that were not won:');
+  console.table(Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([cause, n]) => ({ cause, attempts: n, share: pct(n, losses.length) })));
+}
+
+const sessions = events.filter((e) => e.type === 'session_start').length;
+const ftue = events.filter((e) => e.type === 'ftue');
+if (ftue.length) {
+  const base = sessions || Math.max(1, players.size);
+  const steps = [...new Map(ftue.map((e) => [e.step, e.name])).entries()].sort((a, b) => a[0] - b[0]);
+  console.log(`\nFirst-session funnel (share of ${sessions ? `${sessions} session(s)` : `${base} player(s)`}):`);
+  console.table(steps.map(([step, name]) => {
+    const reached = ftue.filter((e) => e.step === step).length; // each step fires once per first session
+    return { step, name, reached, share: pct(Math.min(reached, base), base) };
+  }));
+}
+
 const allWins = ends.filter((e) => e.result === 'win').length;
 console.log(`\nOverall win rate ${pct(allWins, Math.max(starts.length, ends.length))}.`);
 console.log(players.size < 5

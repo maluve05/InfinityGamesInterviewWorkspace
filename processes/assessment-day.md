@@ -9,9 +9,12 @@ build so the last hour stays free for anything that goes wrong.
 - [ ] `npm run check:pre-window` passes (no game code exists yet).
 - [ ] The blank placeholder is live at the public link; it opens in a private
       desktop window with no Cloudflare challenge.
-- [ ] `npx wrangler whoami` shows your account; `agy -p "say ok"` returns ok;
-      `agy --version` is 1.5.2 (if it changed, Claude runs one small fence probe —
-      `processes/worker-dispatch.md`).
+- [ ] `npx wrangler whoami` shows your account.
+- [ ] Antigravity IDE open on **this folder** (never a parent folder), agent
+      terminal commands set to ask before running. Say "claude has work for you":
+      it must answer "No tasks for me." without touching anything.
+- [ ] Backup worker: `agy --version` is 1.5.2 (if it changed, Claude runs one
+      small fence probe — `processes/worker-dispatch.md`).
 - [ ] Figma open on the student account. Loom (or recorder) ready, mic tested.
 - [ ] Email draft open with headings: link, video, prompt log, written answers.
 - [ ] Open a **fresh** Claude Code session in this folder (not a preparation
@@ -19,10 +22,13 @@ build so the last hour stays free for anything that goes wrong.
       in `PLAN.md`.
 
 **Who runs during the window:** only Claude Code (lead, in this folder) and the
-Antigravity CLI worker (`npm run worker`). Fallbacks, in order, only if those fail:
-the Antigravity IDE opened in this folder, then Freebuff (worst case). Any fallback
-used must have its chat exported into `logs/` (`processes/prompt-log.md` §4). No
-other agent is opened in a parent folder — it treats this repo as scratch space.
+Antigravity IDE as the worker, through the mailbox `claude antigravity and others/`.
+Your only job with the worker: when Claude asks, say **"claude has work for you"**.
+Fallbacks, in order, only if the IDE fails: the Antigravity CLI headless
+(`npm run worker -- T<n>`, Claude runs it), then Freebuff pointed at the same
+mailbox (worst case). Export the IDE chat (and any fallback chat) into `logs/`
+at the freeze (`processes/prompt-log.md` §4). No agent is opened in a parent
+folder — it treats this repo as scratch space.
 
 ## 14:00–14:15 · Brief and pick (Claude + you)
 
@@ -32,12 +38,14 @@ other agent is opened in a parent folder — it treats this repo as scratch spac
 3. If the brief leaves the game to you, pick it (`game-brainstorm`, then `scale-or-kill`): core loop, the one
    question the prototype answers, the twist that fits the studio. Log the choice
    and runners-up in `PLAN.md`.
-4. Claude locks the contract in `PLAN.md` and queues worker tasks in `TASKS.md`.
+4. Claude locks the contract in `PLAN.md`, ranks the optional list (seen by the
+   assessor first, each with a time gate) and writes worker tasks into
+   `claude antigravity and others/tasks/`. You tell Antigravity "claude has work for you".
 
 ## 14:15–14:40 · Scaffold + directions (in parallel)
 
 - **Claude:** three visual directions → Figma (`design-first` steps 1–3).
-- **Worker:** `game-scaffold` plumbing and engine tests from the contract (logic only).
+- **Worker** (via the mailbox): `game-scaffold` plumbing and engine tests from the contract (logic only).
 - **You:** look at the directions as they land.
 
 ## 14:40–14:55 · Pick and refine (you) → lock (Claude)
@@ -54,8 +62,8 @@ not a temporary HTML page. Behind schedule? Use the fast path (two directions,
 
 Play screen first at final visual quality, then start and end screens. After each
 screen: `npm run shots`, compare with its frame, fix the biggest gap.
-**Worker:** more tests, sound generation (`game-audio`), deploy after each milestone,
-running notes in `REFLECTION.md`. **You:** play every deploy in a desktop browser.
+**Worker** (via the mailbox): more tests, sound generation (`game-audio`),
+running notes in `REFLECTION.md`. Claude deploys after each milestone. **You:** play every deploy in a desktop browser.
 
 ## 15:50–16:00 · Verify v1
 
@@ -65,9 +73,10 @@ and commit in `PLAN.md`.
 
 ## 16:00–17:00 · Polish and improve
 
-Each round (~15 min): Claude proposes a ranked list (visual gaps first, then
-feel and sound, then mechanics) → you pick → build → `npm run verify` → deploy →
-you play it. Keep the last good deploy working.
+Each round (~15 min): Claude proposes the next items from the ranked, gated
+optional list in `PLAN.md` (visual gaps first, then feel and sound, then
+mechanics) → you pick → build → `npm run verify` → deploy → you play it. An item
+whose gate has passed is dropped, not squeezed in. Keep the last good deploy working.
 
 ## 17:00 · Freeze
 
