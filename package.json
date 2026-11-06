@@ -1,0 +1,35 @@
+{
+  "name": "infinity-games-interview",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workspace for a timed, AI-assisted browser game prototype (Infinity Games Vibe Coder assessment).",
+  "type": "module",
+  "author": "Malvin Tafadzwa Chitswamatombo",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "test": "node --test --test-reporter=spec \"tests/**/*.test.mjs\"",
+    "smoke": "node tools/smoke.mjs",
+    "shots": "node tools/smoke.mjs --shots",
+    "verify": "node tools/check-template.mjs --has-tests && npm test && npm run smoke",
+    "deploy": "npm run verify && wrangler deploy",
+    "check": "node tools/check-template.mjs && node tools/sync-skills.mjs --check",
+    "check:pre-window": "node tools/check-template.mjs --pre-window && node tools/sync-skills.mjs --check",
+    "skills:sync": "node tools/sync-skills.mjs",
+    "skills:check": "node tools/sync-skills.mjs --check",
+    "worker": "node tools/dispatch-worker.mjs",
+    "logs:claude": "node tools/export-claude-log.mjs --since 2026-11-07T13:30",
+    "logs:rules": "node tools/export-rules.mjs",
+    "logs:worker": "node tools/export-worker-log.mjs",
+    "logs": "npm run logs:claude && npm run logs:worker && npm run logs:rules",
+    "metrics": "node tools/metrics.mjs",
+    "models": "node tools/poly-pizza.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.0",
+    "wrangler": "^4.45.0"
+  }
+}

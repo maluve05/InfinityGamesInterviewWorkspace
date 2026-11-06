@@ -1,0 +1,38 @@
+# Credentials and local agent state
+.env
+.env.*
+!.env.example
+**/auth.json
+**/credentials.json
+**/token.json
+**/tokens.json
+.claude/settings.local.json
+.wrangler/
+.dev.vars
+
+# Dependencies and output
+node_modules/
+dist/
+.cache/
+*.log
+
+# Local inputs and worker output (logs/ is committed at submission time on purpose)
+inbox/*
+!inbox/.gitkeep
+!inbox/design/
+inbox/design/*
+!inbox/design/.gitkeep
+!inbox/reports/
+inbox/reports/*
+!inbox/reports/.gitkeep
+
+# Per-run screenshots from npm run shots
+design/compare/*
+!design/compare/.gitkeep
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

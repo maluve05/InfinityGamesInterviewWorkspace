@@ -1,0 +1,16 @@
+{
+  // Static-assets Worker serving public/. No build step.
+  // No account_id here: `npx wrangler login` (or CLOUDFLARE_ACCOUNT_ID in .env) supplies it.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "infinity-games-interview",
+  "compatibility_date": "2026-10-01",
+  // Keep the workers.dev URL as a fallback link (adding routes disables it otherwise).
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "infinity.chitswa.com", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application"
+  }
+}
