@@ -26,6 +26,7 @@
     "logs:rules": "node tools/export-rules.mjs",
     "logs:worker": "node tools/export-worker-log.mjs",
     "logs": "npm run logs:claude && npm run logs:worker && npm run logs:rules",
+    "telemetry:export": "node tools/export-telemetry.mjs",
     "metrics": "node tools/metrics.mjs",
     "models": "node tools/poly-pizza.mjs"
   },

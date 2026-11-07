@@ -1,7 +1,7 @@
 // Versioned save data. Never throws: falls back to memory when storage is blocked.
 export const STORAGE_KEY = 'infinity-runner-save';
 export const VERSION = 1;
-const DEFAULTS = () => ({ version: VERSION, best: 0, runs: 0, settings: { sound: true } });
+const DEFAULTS = () => ({ version: VERSION, best: 0, runs: 0, settings: { sound: true }, tutorialDone: false });
 
 let memory = null;
 function backend() {
@@ -17,7 +17,12 @@ export function load() {
   try {
     const data = JSON.parse(raw);
     if (!data || data.version !== VERSION) return { ...DEFAULTS(), best: Number(data?.best) || 0 };
-    return { ...DEFAULTS(), ...data, settings: { ...DEFAULTS().settings, ...data.settings } };
+    return {
+      ...DEFAULTS(),
+      ...data,
+      tutorialDone: Boolean(data?.tutorialDone),
+      settings: { ...DEFAULTS().settings, ...data.settings },
+    };
   } catch { return DEFAULTS(); }
 }
 

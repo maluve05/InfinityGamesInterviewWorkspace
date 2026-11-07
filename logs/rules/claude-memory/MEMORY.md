@@ -1,0 +1,2 @@
+- [Engine work goes to Antigravity](engine-work-goes-to-antigravity.md) — Claude codes visuals only; engine/generation/balance changes become worker tasks
+- [Owner runs playtests](owner-runs-playtests.md) — no browser play/screenshots by Claude; tests + smoke, then the owner plays

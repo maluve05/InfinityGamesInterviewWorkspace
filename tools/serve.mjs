@@ -18,6 +18,11 @@ export function startServer(port = 5173) {
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
+      if (url.pathname === '/api/telemetry') {
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ ok: true, local: true }));
+        return;
+      }
       let file = path.normalize(path.join(root, decodeURIComponent(url.pathname)));
       if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
       if ((await stat(file).catch(() => null))?.isDirectory()) file = path.join(file, 'index.html');

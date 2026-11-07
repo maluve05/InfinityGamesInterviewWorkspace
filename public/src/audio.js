@@ -3,13 +3,44 @@ let ctx = null, master = null, muted = false;
 const samples = new Map();
 const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
 
+const SFX = ['collect', 'match', 'burst', 'break', 'hit', 'jump', 'land', 'lane', 'vault', 'unlock', 'storm-step', 'caught', 'start', 'best', 'ui', 'music-run', 'surf-loop'];
+const loops = {};   // name -> { gain, src }
+
 export function unlock() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
   const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain(); master.gain.value = muted ? 0 : 0.5; master.connect(ctx.destination);
+  // Generated sounds (ElevenLabs, see design/specs/audio.md); the synth below covers anything missing.
+  load(Object.fromEntries(SFX.map((n) => [n, `./assets/sfx/${n}.mp3`]))).then(() => { loop('surf-loop', 0.5, 2); if (wantMusic) music(true); });
 }
+
+/** Start (or fade) a looping layer. vol 0 fades it out. */
+export function loop(name, vol = 1, fadeS = 0.6) {
+  if (!ctx) return;
+  let l = loops[name];
+  if (!l && vol > 0) {
+    const buf = samples.get(name); if (!buf) return;
+    const g = ctx.createGain(); g.gain.value = 0.0001; g.connect(master);
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(g); src.start();
+    l = loops[name] = { gain: g, src };
+  }
+  if (!l) return;
+  const t = ctx.currentTime;
+  l.gain.gain.cancelScheduledValues(t); l.gain.gain.setValueAtTime(Math.max(0.0001, l.gain.gain.value), t);
+  l.gain.gain.linearRampToValueAtTime(Math.max(0.0001, vol), t + fadeS);
+  if (vol <= 0) { const dead = l; delete loops[name]; setTimeout(() => { try { dead.src.stop(); } catch { /* stopped */ } }, fadeS * 1000 + 50); }
+}
+/** Music: restart from the top on each run. */
+let wantMusic = false;
+export function music(on) {
+  wantMusic = on;
+  if (!ctx) return;
+  if (on) { if (loops['music-run']) loop('music-run', 0, 0.05); setTimeout(() => loop('music-run', 0.55, 0.4), 60); }
+  else loop('music-run', 0, 1.2);
+}
+export function duck(on) { if (loops['music-run']) loop('music-run', on ? 0.18 : 0.55, 0.25); }
 
 export function setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.5; }
 
@@ -79,6 +110,21 @@ export function play(name, opts = {}) {
   } else if (name === 'caught') {
     if (sample('caught')) return;
     tone(196, { type: 'sine', vol: 0.3, dur: 0.9, slideTo: 65 }); noise({ dur: 1, vol: 0.18, from: 900, to: 80 });
+  } else if (name === 'thunder') {
+    // Distant strikes are quiet and low; close ones louder. Reuses the storm rumble, pitched down.
+    const near = opts.near ?? 0;
+    if (sample('storm-step', { pitch: 0.75 + near * 0.2, volume: 0.25 + near * 0.5 })) return;
+    noise({ dur: 0.7, vol: 0.06 + near * 0.12, from: 400, to: 60 });
+  } else if (name === 'skip') {
+    if (sample('vault', { pitch: 1.25, volume: 0.6 })) return;
+    tone(freq(12), { type: 'sine', vol: 0.12, dur: 0.18, slideTo: freq(19) });
+  } else if (['land', 'vault', 'unlock', 'storm-step', 'best', 'ui'].includes(name)) {
+    const vol = { land: 0.7, vault: 0.8, unlock: 1, 'storm-step': 0.9, best: 1, ui: 0.6 }[name];
+    if (sample(name, { volume: vol })) return;
+    if (name === 'storm-step') { tone(80, { type: 'sine', vol: 0.35, dur: 0.8, slideTo: 50 }); noise({ dur: 0.9, vol: 0.15, from: 500, to: 90 }); }
+    else if (name === 'unlock' || name === 'best') [0, 4, 7, 12, 16].forEach((st, i) => tone(freq(st), { at: i * 0.06, type: 'triangle', vol: 0.16, dur: 0.5 }));
+    else if (name === 'vault') tone(freq(7), { type: 'sine', vol: 0.15, dur: 0.25, slideTo: freq(12) });
+    else tone(220, { type: 'sine', vol: 0.12, dur: 0.08 });
   } else if (name === 'start') {
     if (sample('start')) return;
     [0, 7, 12].forEach((s, i) => tone(freq(s), { at: i * 0.07, type: 'triangle', vol: 0.15, dur: 0.3 }));

@@ -1,6 +1,7 @@
 // Canvas renderer: pseudo-3D road, gems, runner, storm, HUD and effects.
 // Reads engine state; never changes it. Randomness here is visual only.
 import { jumpHeight } from './engine.js';
+import { loadSprites, tintScarf } from './sprites.js';
 
 const W = 405, H = 720;
 const HOR = H * 0.37, NEAR = H * 1.02, HALF = W * 0.72;
@@ -26,10 +27,23 @@ const DUSK = {
   slot: '#ffffff', storm: '#120a24', cloud: '#2c1748', bolt: '#c9a6ff', barrier: '#2a2350', moon: '#ffd9a6', runner: '#f6f2ea', accent: '#33f0d0',
 };
 
+const P = (name, h, off, noFlip = false) => ({ name, h, off, noFlip });
+const WORLD_DEFS = [
+  { key: 'coast', foam: true, ground: [[214, 196, 156], [242, 220, 166]], edge: '#ffffff', glow: 'rgba(80,190,255,.9)', groove: 'rgba(150,110,60,.35)', haze: '225,245,255', grade: null,
+    props: [P('palm', 330, [1.95, 2.6]), P('coral', 95, [1.75, 2.3]), P('lamp', 210, [1.7, 1.8]), P('palm', 300, [2.2, 3.0]), P('hut', 210, [2.4, 2.9], true), P('buoy', 85, [2.6, 3.4]), P('coral', 80, [2.0, 2.8])] },
+];
+
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => { const x = hex(a), y = hex(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(',')})`; };
 const ease = (t) => t * t * (3 - 2 * t);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+/** How far away the storm is, 1 = out of sight, 0 = caught. Works with the step rule (T5) and the old gap rule. */
+const stormShare = (state) => {
+  const c = state.config.chaser;
+  if (Number.isFinite(state.chaserStep)) return clamp(1 - state.chaserStep / (c.steps || 3), 0, 1);
+  if (Number.isFinite(state.gap) && c.maxGapM) return clamp(state.gap / c.maxGapM, 0, 1);
+  return 1;
+};
 
 /** Day → dusk → day over 3,600 m; dusk is reached at 1,800 m. */
 export function duskAmount(distance) {
@@ -39,8 +53,20 @@ export function duskAmount(distance) {
 export function createView(canvas) {
   const ctx = canvas.getContext('2d');
   let dpr = 1;
-  const fx = { particles: [], floats: [], flash: 0, shake: 0, laneX: 1, slotPop: [0, 0, 0, 0, 0, 0], drain: null, surge: 0, bolt: 0 };
+  let onStrike = null;
+  const fx = { strikes: [], nextStrike: 2500, dust: [], pose: 'run', prevPose: null, poseT: 0, lastDrawn: null, lastFoot: -1, runPhase: 0, landT: 0, takeT: 0, wasAir: false, particles: [], floats: [], flash: 0, shake: 0, laneX: 1, slotPop: [0, 0, 0, 0, 0, 0], drain: null, surge: 0, bolt: 0 };
   let palette = DAY, dusk = 0;
+  const art = loadSprites();
+  const coast = () => art.img('coast-backdrop') !== null;
+  // Roadside props: placed every PROP_M metres on alternating sides, chosen by hash.
+  const PROP_M = 7;
+  // Worlds, in run order (engine `setting` index). Each road row, prop and barrier takes the world of
+  // its own z, so the next world arrives along the road; the sky crossfades over CROSS_M.
+  const CROSS_M = 80;
+  const WORLDS = WORLD_DEFS;
+  const worldIndex = (state, z) => { const c = state.config.setting; return ((Math.floor(z / c.lengthM) % c.count) + c.count) % c.count; };
+  const worldAt = (state, z) => WORLDS[worldIndex(state, z) % WORLDS.length];
+  const hash = (n) => { let x = (n * 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; return (x ^ (x >>> 13)) >>> 0; };
 
   function resize() {
     const r = canvas.getBoundingClientRect();
@@ -54,14 +80,45 @@ export function createView(canvas) {
   const mzOf = (state, z) => RUNNER_MZ + (z - state.distance) / M_PER_UNIT;
 
   function setPalette(distance) {
-    dusk = ease(duskAmount(distance));
+    dusk = coast() ? 0 : ease(duskAmount(distance));
     const p = {};
     for (const k of Object.keys(DAY)) p[k] = mix(DAY[k], DUSK[k], dusk);
     palette = p;
     return dusk;
   }
 
-  function sky() {
+  function backdrop(name, alpha) {
+    const bd = art.img(name) || art.img('coast-backdrop'); if (!bd || alpha <= 0) return;
+    // Painted backdrop (multiplane): horizon of the painting (55.6% down) sits on HOR; slow parallax with the lane.
+    const k = HOR / (bd.naturalHeight * 0.556), w = bd.naturalWidth * k, h = bd.naturalHeight * k;
+    ctx.globalAlpha = alpha; ctx.drawImage(bd, W / 2 - w / 2 - (fx.laneX - 1) * 10, 0, w, h); ctx.globalAlpha = 1;
+  }
+  function crossfade(state) {
+    const L = state.config.setting.lengthM, into = ((state.distance % L) + L) % L;
+    const cur = worldAt(state, state.distance), prev = worldAt(state, state.distance - into - 1);
+    const t = state.distance < L ? 1 : clamp(into / CROSS_M, 0, 1);
+    return { cur, prev, t };
+  }
+  // Storm-darkened sky: a slate-blue multiply over the sky and sea only (the road, runner and gems stay
+  // bright and readable). Darker at the top, and a little darker with each storm step.
+  function stormSky(state) {
+    const step = Number.isFinite(state.chaserStep) ? state.chaserStep : 0;
+    const bottom = HOR + 30;
+    ctx.save(); ctx.globalCompositeOperation = 'multiply';
+    const g = ctx.createLinearGradient(0, 0, 0, bottom);
+    const top = 0.5 + step * 0.08, low = 0.25 + step * 0.06;
+    g.addColorStop(0, `rgba(70,82,120,${top})`); g.addColorStop(1, `rgba(120,135,165,${low})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, bottom);
+    ctx.restore();
+  }
+  function sky(state) {
+    if (coast()) {
+      const { cur, prev, t } = crossfade(state);
+      if (t < 1) backdrop(prev.key + '-backdrop', 1);
+      backdrop(cur.key + '-backdrop', t < 1 ? ease(t) : 1);
+      stormSky(state);
+      return;
+    }
     const g = ctx.createLinearGradient(0, 0, 0, HOR + 20);
     g.addColorStop(0, palette.sky0); g.addColorStop(0.6, palette.sky1); g.addColorStop(1, palette.sky2);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, HOR + 20);
@@ -72,6 +129,7 @@ export function createView(canvas) {
   }
 
   function scenery(t) {
+    if (coast()) return;
     // Dunes by day.
     if (dusk < 0.98) {
       ctx.globalAlpha = 1 - dusk;
@@ -102,6 +160,7 @@ export function createView(canvas) {
   }
 
   function road(state) {
+    if (coast()) { rasterRoad(state); return; }
     // Ground + road bands aligned to world metres so they rush past.
     const farMz = 32;
     const startZ = Math.floor((state.distance + (farMz - RUNNER_MZ) * M_PER_UNIT) / BAND_M) * BAND_M;
@@ -137,6 +196,63 @@ export function createView(canvas) {
     ctx.globalAlpha = 0.55; ctx.fillStyle = g; ctx.fillRect(0, HOR - 40, W, 76); ctx.globalAlpha = 1;
   }
 
+  // OutRun-style raster road: one textured scanline per screen row, depth from a 1/z table.
+  function rasterRoad(state) {
+    const here = worldAt(state, state.distance);
+    const beachY = HOR + 26;                  // the painting's sea / bay / snowfield shows down to here
+    for (let y = Math.floor(HOR) + 1; y < H; y += 1) {
+      const sc = (y - HOR) / (NEAR - HOR), mz = 1 / sc;
+      const z = state.distance + (mz - RUNNER_MZ) * M_PER_UNIT;
+      const hw = HALF * sc;
+      const wd = worldAt(state, z);
+      const tex = art.img(wd.key + '-road') || art.img('coast-road');
+      if (y > beachY) {
+        // Ground beside the road: far colour near the horizon, near colour toward the camera; soft bands only up close.
+        const near = clamp((y - beachY) / 160, 0, 1), [a, b] = wd.ground;
+        const band = sc > 0.25 && Math.floor(z / 5) % 2 === 0 ? 6 : 0;
+        ctx.fillStyle = `rgb(${Math.round(a[0] + (b[0] - a[0]) * near - band)},${Math.round(a[1] + (b[1] - a[1]) * near - band)},${Math.round(a[2] + (b[2] - a[2]) * near - band)})`;
+        ctx.fillRect(0, y, W, 1.6);
+      }
+      if (!tex) { ctx.fillStyle = Math.floor(z / 3) % 2 ? '#e8cf9f' : '#e2c794'; ctx.fillRect(W / 2 - hw * 1.04, y, hw * 2.08, 1.6); continue; }
+      const tw = tex.naturalWidth, th = tex.naturalHeight, v = (((z * th / 18) % th) + th) % th;
+      ctx.drawImage(tex, 0, Math.floor(v), tw, 1, W / 2 - hw * 1.04, y, hw * 2.08, 1.6);
+    }
+    // Foam line (coast only), then a haze over the far road (atmospheric perspective).
+    ctx.save();
+    if (here.foam) { ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(0, beachY, W, 2); }
+    const g = ctx.createLinearGradient(0, HOR, 0, HOR + 70);
+    g.addColorStop(0, `rgba(${here.haze},.7)`); g.addColorStop(1, `rgba(${here.haze},0)`);
+    ctx.fillStyle = g; ctx.fillRect(0, HOR, W, 70);
+    // Side shading of the road surface, darker toward the curbs (fake ambient occlusion).
+    ctx.restore();
+    // Curbs and lane grooves.
+    const f = proj(40), n = proj(0.95);
+    ctx.save();
+    for (const k of [-1.04, -1 / 3, 1 / 3, 1.04]) {
+      const edge = Math.abs(k) > 1;
+      ctx.strokeStyle = edge ? here.edge : here.groove;
+      ctx.lineWidth = edge ? 4 : 2;
+      ctx.shadowColor = edge ? here.glow : 'transparent'; ctx.shadowBlur = edge ? 8 : 0;
+      ctx.beginPath(); ctx.moveTo(W / 2 + HALF * f.s * k, f.y); ctx.lineTo(W / 2 + HALF * n.s * k, n.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function prop(state, p, mz, wd, def, side, k) {
+    const im = art.img(wd.key + '-' + def.name); if (!im) return;
+    const span = def.off[1] - def.off[0];
+    const off = (def.off[0] + span * ((hash(k + 7) % 100) / 100)) * side;
+    const x = W / 2 + off * (HALF * 2 / 3) * p.s;
+    const h = def.h * p.s * (0.85 + (hash(k + 3) % 30) / 100), w = h * im.naturalWidth / im.naturalHeight;
+    const fade = clamp((40 - mz) / 8, 0, 1);
+    ctx.save(); ctx.globalAlpha = fade;
+    if (side < 0 && !def.noFlip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
+    ctx.fillStyle = 'rgba(60,40,10,.22)';
+    ctx.beginPath(); ctx.ellipse(x, p.y, w * 0.38, w * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.drawImage(im, x - w / 2, p.y - h * 0.97, w, h);
+    ctx.restore();
+  }
+
   function quad(x1, x2, y1, x3, x4, y2) {
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.lineTo(x3, y2); ctx.lineTo(x4, y2); ctx.closePath(); ctx.fill();
   }
@@ -152,6 +268,15 @@ export function createView(canvas) {
   }
 
   function gem(color, cx, cy, r, alpha = 1, glow = true) {
+    const im = art.img('gem-' + color);
+    if (im) {
+      const d = r * 2.05, w = d * im.naturalWidth / Math.max(im.naturalWidth, im.naturalHeight), h = d * im.naturalHeight / Math.max(im.naturalWidth, im.naturalHeight);
+      ctx.save(); ctx.globalAlpha = alpha;
+      if (glow) { ctx.shadowColor = GEMS[color][1]; ctx.shadowBlur = r * 0.6; }
+      ctx.drawImage(im, cx - w / 2, cy - h / 2, w, h);
+      ctx.restore();
+      return;
+    }
     const [light, base, deep, edge] = GEMS[color];
     ctx.save(); ctx.globalAlpha = alpha;
     const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.05, cx, cy, r * 1.1);
@@ -165,13 +290,28 @@ export function createView(canvas) {
   }
 
   function items(state, t) {
-    const list = state.items.map((it) => ({ it, mz: mzOf(state, it.z) })).filter((o) => o.mz > 1.0 && o.mz < 32).sort((a, b) => b.mz - a.mz);
+    const list = state.items.map((it) => ({ it, mz: mzOf(state, it.z) })).filter((o) => o.mz > 1.0 && o.mz < 32);
+    if (coast()) {
+      const k0 = Math.floor((state.distance - 2) / PROP_M), k1 = Math.ceil((state.distance + 39 * M_PER_UNIT) / PROP_M);
+      for (let k = k0; k <= k1; k += 1) {
+        const mz = mzOf(state, k * PROP_M);
+        if (mz > 0.6 && mz < 40) list.push({ it: { kind: 'prop', k }, mz });
+      }
+    }
+    list.sort((a, b) => b.mz - a.mz);
     const runnerDrawn = { done: false };
     for (const { it, mz } of list) {
       if (!runnerDrawn.done && mz < RUNNER_MZ) { runner(state, t); runnerDrawn.done = true; }
       const p = proj(mz), x = laneX(it.lane, p.s);
       const fade = clamp((32 - mz) / 6, 0, 1);
-      if (it.kind === 'barrier') {
+      if (it.kind === 'prop') { const wd = worldAt(state, it.k * PROP_M); prop(state, p, mz, wd, wd.props[hash(it.k) % wd.props.length], it.k % 2 ? 1 : -1, it.k); continue; }
+      const bar = it.kind === 'barrier' && (art.img(worldAt(state, it.z).key + '-barrier') || art.img('coast-barrier'));
+      if (bar) {
+        const w = (HALF * 2 / 3) * p.s * 1.1, h = w * bar.naturalHeight / bar.naturalWidth;
+        ctx.save(); ctx.globalAlpha = fade;
+        ctx.fillStyle = 'rgba(60,40,10,.3)'; ctx.beginPath(); ctx.ellipse(x, p.y, w * 0.48, w * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.drawImage(bar, x - w / 2, p.y - h * 0.92, w, h); ctx.restore();
+      } else if (it.kind === 'barrier') {
         const w = HALF * 0.55 * p.s, h = 100 * p.s;
         ctx.globalAlpha = fade; ctx.fillStyle = palette.barrier;
         roundRect(x - w, p.y - h, w * 2, h, 18 * p.s); ctx.fill();
@@ -181,11 +321,12 @@ export function createView(canvas) {
         for (let k = -1; k <= 1; k += 1) { ctx.beginPath(); ctx.moveTo(x + k * w * 0.5 - 12 * p.s, p.y - h * 0.7); ctx.lineTo(x + k * w * 0.5, p.y - h * 0.35); ctx.lineTo(x + k * w * 0.5 + 12 * p.s, p.y - h * 0.7); ctx.stroke(); }
         ctx.globalAlpha = 1;
       } else {
-        const r = 72 * p.s;
+        // Diameter = 30% of the runner's on-screen height at the same depth; centre at the engine's float height.
+        const r = 40 * p.s, floatPx = (state.config.gem?.floatM ?? 0.9) * 105 * 1.45 * p.s;
         const bob = Math.sin(t / 300 + it.id) * r * 0.12;
-        ctx.globalAlpha = 0.25 * fade; ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.ellipse(x, p.y, r * 0.8, r * 0.22, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-        gem(it.color, x, p.y - r * 1.4 + bob, r, fade, mz < 14);
+        ctx.globalAlpha = 0.22 * fade; ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.ellipse(x, p.y, r * 0.7, r * 0.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+        gem(it.color, x, p.y - floatPx + bob, r, fade, mz < 14);
       }
     }
     if (!runnerDrawn.done) runner(state, t);
@@ -196,7 +337,98 @@ export function createView(canvas) {
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
+  const tintCache = new Map();
+  function runnerFrame(name, color) {
+    const im = art.img(name); if (!im) return null;
+    const key = name + ':' + (color || '');
+    if (!tintCache.has(key)) tintCache.set(key, tintScarf(im, color ? GEMS[color][1] : null));
+    return tintCache.get(key);
+  }
+
   function runner(state, t) {
+    if (!art.img('run-0')) { vectorRunner(state, t); return; }
+    const p = proj(RUNNER_MZ);
+    const x = W / 2 + (fx.laneX - 1) * (HALF * 2 / 3) * p.s;
+    const air = state.jumpMs !== null;
+    const liftM = jumpHeight(state), lift = liftM * 105;
+    const idle = state.timeMs === 0 && state.distance === 0;
+    const ph = fx.runPhase * 8, fi = Math.floor(ph) % 8, frac = ph - Math.floor(ph);
+    // One sprite family for every move, like the lane change: in the air the stride freezes on the
+    // frame she left the ground with, and only position, lean and squash/stretch change.
+    if (!air) fx.airFrame = fi;
+    const name = idle ? 'idle' : `run-${air ? fx.airFrame : fi}`;
+    const scale = idle ? 0.62 : 0.78;               // the idle pose was drawn larger on its sheet
+    const tint = state.chain.count > 0 ? state.chain.color : null;
+    const fr = runnerFrame(name, tint) || art.img(name);
+    if (!fr) return;
+    // Pose changes (run ↔ jump ↔ land ↔ stumble) crossfade over 90 ms instead of popping.
+    const pose = name.startsWith('run-') ? 'run' : name;
+    if (pose !== fx.pose) { fx.prevPose = fx.lastDrawn; fx.poseT = 1; fx.pose = pose; }
+    fx.lastDrawn = { name, scale };
+    // Squash and stretch: stretch on take-off, squash on landing.
+    let sx = 1, sy = 1;
+    if (fx.takeT > 0) { sy = 1 + fx.takeT * 0.12; sx = 1 - fx.takeT * 0.08; }
+    if (fx.landT > 0) { sy = 1 - fx.landT * 0.14; sx = 1 + fx.landT * 0.1; }
+    // Rising: a slight lean back; falling: lean forward. Stumble: a quick wobble on the run frame.
+    const bob = air || idle ? 0 : Math.abs(Math.sin(fx.runPhase * Math.PI * 2)) * -4;
+    const vy = air ? liftM - (fx.prevLift ?? liftM) : 0; fx.prevLift = liftM;
+    const lean = (fx.laneX - Math.round(fx.laneX)) * -0.35 + (state.stumbleMs > 0 ? Math.sin(t / 45) * 0.12 : 0) + clamp(-vy * 2.2, -0.12, 0.12);
+    // Contact shadow: shrinks and fades with height.
+    const sh = clamp(1 - liftM / 2.2, 0.35, 1);
+    ctx.fillStyle = `rgba(70,45,15,${0.32 * sh})`;
+    ctx.beginPath(); ctx.ellipse(x, p.y + 2, 44 * sh, 11 * sh, 0, 0, Math.PI * 2); ctx.fill();
+    const w = fr.width * scale, h = fr.height * scale;
+    const footY = p.y - lift + bob;
+    // Chain glow: a soft light of the chain colour behind her (only while a chain is live).
+    if (tint) {
+      const gl = ctx.createRadialGradient(x, footY - h * 0.55, 4, x, footY - h * 0.55, h * 0.6);
+      gl.addColorStop(0, GEMS[tint][3] + '66'); gl.addColorStop(1, GEMS[tint][3] + '00');
+      ctx.fillStyle = gl; ctx.fillRect(x - h * 0.6, footY - h * 1.15, h * 1.2, h * 1.2);
+    }
+    // Lane-switch motion trail: two fading ghosts back toward where she came from.
+    const slide = state.lane - fx.laneX;
+    const liftStep = air ? vy * 105 * 6 : 0;        // where she was a few frames ago, vertically
+    if (Math.abs(slide) > 0.04 || Math.abs(liftStep) > 2) {
+      const step = slide * (HALF * 2 / 3) * p.s;
+      for (const [k, a] of [[0.55, 0.22], [1.1, 0.1]]) {
+        ctx.save(); ctx.globalAlpha = a; ctx.translate(x - step * k, footY + liftStep * k); ctx.rotate(lean); ctx.scale(sx, sy);
+        ctx.drawImage(fr, -w / 2, -h, w, h); ctx.restore();
+      }
+    }
+    ctx.save();
+    ctx.translate(x, footY); ctx.rotate(lean); ctx.scale(sx, sy);
+    // Outgoing pose fades out underneath the new one.
+    if (fx.poseT > 0 && fx.prevPose) {
+      const pf = runnerFrame(fx.prevPose.name, tint) || art.img(fx.prevPose.name);
+      if (pf) { ctx.globalAlpha = fx.poseT; ctx.drawImage(pf, -pf.width * fx.prevPose.scale / 2, -pf.height * fx.prevPose.scale, pf.width * fx.prevPose.scale, pf.height * fx.prevPose.scale); }
+    }
+    ctx.globalAlpha = fx.poseT > 0 ? 1 - fx.poseT * 0.5 : 1;
+    ctx.drawImage(fr, -w / 2, -h, w, h);
+    // In-between frame: blend the next run frame in by the phase fraction (8 drawn frames read as ~16).
+    if (name.startsWith('run-') && frac > 0.15) {
+      const nf = runnerFrame(`run-${(fi + 1) % 8}`, tint);
+      if (nf) { ctx.globalAlpha = frac * 0.55; ctx.drawImage(nf, -nf.width * scale / 2, -nf.height * scale, nf.width * scale, nf.height * scale); }
+    }
+    ctx.restore();
+    // Footfall dust: a small sand puff each time a foot lands (frames 0 and 4 of the cycle).
+    if (name.startsWith('run-') && fi % 4 === 0 && fx.lastFoot !== fi && state.stumbleMs === 0) {
+      fx.lastFoot = fi;
+      for (let i = 0; i < 3; i += 1) fx.dust.push({ x: x + (i - 1) * 8 + (fi === 0 ? -8 : 8), y: p.y, vx: (i - 1) * 20, vy: -18 - i * 6, life: 0.35 });
+    }
+    if (!name.startsWith('run-')) fx.lastFoot = -1;
+  }
+
+  function drawDust(dt) {
+    for (const d of fx.dust) {
+      d.x += d.vx * dt; d.y += d.vy * dt; d.life -= dt;
+      const k = clamp(d.life / 0.35, 0, 1);
+      ctx.fillStyle = `rgba(236,214,170,${0.55 * k})`;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 7 + (1 - k) * 8, 0, Math.PI * 2); ctx.fill();
+    }
+    fx.dust = fx.dust.filter((d) => d.life > 0);
+  }
+
+  function vectorRunner(state, t) {
     const p = proj(RUNNER_MZ);
     const x = W / 2 + (fx.laneX - 1) * (HALF * 2 / 3) * p.s;
     const lift = jumpHeight(state) * 46;
@@ -232,12 +464,26 @@ export function createView(canvas) {
   }
 
   function storm(state, t) {
-    const share = clamp(state.gap / state.config.chaser.maxGapM, 0, 1);
+    const share = stormShare(state);
     // Off-screen at full gap; rises into view as the storm closes in.
     const near = clamp((1 - share) / 0.85, 0, 1);
     const h = -100 + ease(near) * 245 + fx.surge * 30 * near;
     if (h <= -90) return;
     const top = H - h;
+    const cloud = art.img('storm');
+    if (cloud) {
+      // Painted storm bank: two copies drifting against each other for a churning edge; a flash brightens it on lightning.
+      const w = W * 1.5, ch = w * cloud.naturalHeight / cloud.naturalWidth;
+      const y0 = top - ch * 0.32;
+      ctx.drawImage(cloud, -W * 0.25 + Math.sin(t / 900) * 18, y0 + 14, w, ch);
+      ctx.save(); ctx.scale(-1, 1);
+      ctx.drawImage(cloud, -W * 1.25 + Math.sin(t / 700 + 1) * 22, y0, w, ch);
+      ctx.restore();
+      if (y0 + ch < H) { ctx.fillStyle = '#1c1f4a'; ctx.fillRect(0, y0 + ch - 2, W, H - (y0 + ch) + 2); }
+      if (fx.bolt > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (fx.bolt / 120) * 0.35; ctx.drawImage(cloud, -W * 0.25, y0 + 14, w, ch); ctx.restore(); }
+      if (fx.bolt <= 0 && Math.random() < 0.004 + (1 - share) * 0.03) fx.bolt = 120;
+      return;
+    }
     const g = ctx.createLinearGradient(0, top - 70, 0, H);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.45, palette.storm); g.addColorStop(1, palette.storm);
     ctx.globalAlpha = 0.92; ctx.fillStyle = g; ctx.fillRect(0, top - 70, W, h + 70); ctx.globalAlpha = 1;
@@ -293,15 +539,19 @@ export function createView(canvas) {
       ctx.shadowColor = GEMS[color][1]; ctx.shadowBlur = 10;
       ctx.fillText(`×${count - c.chain.minScore + 1}`, W / 2, y + sw + 52); ctx.restore();
     }
-    // Gap meter.
-    const share = clamp(state.gap / c.chaser.maxGapM, 0, 1);
-    const mx = 40, mw = W - 80, my = H - 34;
-    ctx.globalAlpha = 0.2; ctx.fillStyle = palette.ink; roundRect(mx, my, mw, 8, 4); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.save(); ctx.fillStyle = share < 0.25 ? '#ff4d5e' : palette.edge; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8;
-    roundRect(mx, my, Math.max(8, mw * share), 8, 4); ctx.fill(); ctx.restore();
-    ctx.fillStyle = palette.cloud; ctx.strokeStyle = palette.bolt; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(mx, my + 4, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = palette.ink; ctx.beginPath(); ctx.arc(mx + mw * share, my + 4, 7, 0, Math.PI * 2); ctx.fill();
+    // Storm steps: three cloud pips at the bottom; each mistake darkens one (3 = caught).
+    const steps = c.chaser.steps || 3;
+    const taken = Number.isFinite(state.chaserStep) ? state.chaserStep : Math.round((1 - stormShare(state)) * steps);
+    for (let i = 0; i < steps; i += 1) {
+      const cx = W / 2 + (i - (steps - 1) / 2) * 46, cy = H - 34, on = i < taken;
+      const pop = on && i === taken - 1 ? fx.surge * 0.3 : 0;
+      ctx.save(); ctx.translate(cx, cy); ctx.scale(1 + pop, 1 + pop);
+      ctx.globalAlpha = on ? 1 : 0.35;
+      ctx.fillStyle = on ? '#2a3566' : '#ffffff';
+      ctx.beginPath(); ctx.arc(-8, 2, 9, 0, Math.PI * 2); ctx.arc(2, -4, 11, 0, Math.PI * 2); ctx.arc(11, 3, 8, 0, Math.PI * 2); ctx.fill();
+      if (on) { ctx.strokeStyle = '#bfe3e6'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(-2, 8); ctx.lineTo(3, 8); ctx.lineTo(-1, 16); ctx.stroke(); }
+      ctx.restore();
+    }
   }
 
   function effects(dt) {
@@ -317,6 +567,12 @@ export function createView(canvas) {
       ctx.fillStyle = f.color; ctx.shadowColor = f.color; ctx.shadowBlur = 12; ctx.fillText(f.text, f.x, f.y); ctx.restore();
     }
     fx.floats = fx.floats.filter((f) => f.life > 0);
+    for (const r of fx.rings || []) {
+      r.t -= dt; const k = 1 - r.t / 0.35;
+      ctx.save(); ctx.globalAlpha = clamp(r.t / 0.35, 0, 1); ctx.strokeStyle = r.color; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(r.x, r.y, 20 + k * 50, 6 + k * 14, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    fx.rings = (fx.rings || []).filter((r) => r.t > 0);
     if (fx.newColor) {
       const n = fx.newColor; n.t -= dt;
       const k = clamp(n.t / 0.4, 0, 1), pop = 1 + Math.max(0, n.t - 1.3) * 1.5;
@@ -328,21 +584,159 @@ export function createView(canvas) {
     if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash})`; ctx.fillRect(0, 0, W, H); fx.flash = Math.max(0, fx.flash - dt * 2.5); }
   }
 
-  function speedLines(state) {
-    const sp = state.config.speed;
-    const k = clamp((state.distance > 0 ? (sp.base + sp.accelPerSec * state.timeMs / 1000 - sp.base) / (sp.max - sp.base) : 0), 0, 1);
-    if (k < 0.15) return;
-    ctx.save(); ctx.strokeStyle = palette.ink; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.12 * k;
-    for (let i = 0; i < 16; i += 1) {
-      const a = (i / 16) * Math.PI * 2 + 0.2, phase = ((state.distance * 0.08 + i * 0.37) % 1);
-      const r1 = 140 + phase * 260, r2 = r1 + 50 * k;
-      const y1 = HOR + Math.sin(a) * r1 * 0.9; if (y1 < HOR + 30) continue;
-      ctx.beginPath(); ctx.moveTo(W / 2 + Math.cos(a) * r1, y1); ctx.lineTo(W / 2 + Math.cos(a) * r2, HOR + Math.sin(a) * r2 * 0.9); ctx.stroke();
+  // Tutorial hints: graphics first — a bouncing arrow over the lane to take, a keycap for the key to press.
+  function keycap(x, y, label, wide = false) {
+    const w = wide ? 92 : 40, h = 36;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.shadowColor = 'rgba(40,60,90,.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+    roundRect(x - w / 2, y - h / 2, w, h, 9); ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#c9d3de'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#2b2a3a'; ctx.font = `700 ${wide ? 14 : 18}px "Space Grotesk", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y + 1); ctx.restore();
+  }
+  function hints(state, t) {
+    const tu = state.tutorial;
+    if (!tu || tu.done) return;
+    const pulse = 0.5 + 0.5 * Math.sin(t / 180);
+    if ((tu.step === 'lanes' || tu.step === 'chain') && tu.targetLane !== null && tu.targetLane !== undefined) {
+      const p = proj(3.2), x = laneX(tu.targetLane, p.s), y = p.y - 95 - pulse * 12;
+      ctx.save(); ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#2fb6ff'; ctx.lineWidth = 4; ctx.shadowColor = 'rgba(47,182,255,.8)'; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.moveTo(x, y + 26); ctx.lineTo(x - 22, y); ctx.lineTo(x - 9, y); ctx.lineTo(x - 9, y - 24); ctx.lineTo(x + 9, y - 24); ctx.lineTo(x + 9, y); ctx.lineTo(x + 22, y); ctx.closePath();
+      ctx.fill(); ctx.stroke(); ctx.restore();
+      const dir = tu.targetLane < state.lane ? '←' : tu.targetLane > state.lane ? '→' : null;
+      if (dir) keycap(W / 2 + (dir === '←' ? -60 : 60), H - 120, dir);
+      if (tu.step === 'chain') pill(W / 2, 168, 'MATCH 3');
+    } else if (tu.step === 'jump') {
+      keycap(W / 2, H - 120 - pulse * 6, 'SPACE', true);
+      pill(W / 2, 168, 'JUMP');
+    } else if (tu.step === 'storm') {
+      pill(W / 2, 168, "DON'T GET CAUGHT");
+    }
+  }
+  function pill(x, y, text) {
+    ctx.save(); ctx.font = '700 14px "Space Grotesk", sans-serif'; const w = ctx.measureText(text).width + 32;
+    ctx.fillStyle = 'rgba(255,250,240,.92)'; roundRect(x - w / 2, y - 15, w, 30, 15); ctx.fill();
+    ctx.fillStyle = '#2b2a3a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y + 1); ctx.restore();
+  }
+
+  // Time-of-day grade: a multiply wash per world so noon-lit sprites sit in dusk and night scenes.
+  function grade(state) {
+    if (!coast()) return;
+    const { cur, prev, t } = crossfade(state);
+    for (const [wd, a] of [[prev, 1 - t], [cur, t]]) {
+      if (!wd.grade || a <= 0) continue;
+      ctx.save(); ctx.globalAlpha = a; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = wd.grade; ctx.fillRect(0, 0, W, H); ctx.restore();
+    }
+  }
+
+  // Slipstream: air streaks rushing out of the vanishing point past the runner. Speed, length and
+  // density grow with distance, so the run visibly accelerates. Deterministic per streak (no allocation).
+  function slipstream(state, t) {
+    if (state.timeMs === 0 && state.distance === 0) return;
+    const k = clamp(state.distance / 2500, 0, 1);          // 0 at the start → 1 by 2.5 km
+    const n = Math.round(10 + 30 * k), rate = 0.55 + 2.4 * k;
+    const cx = W / 2, cy = HOR + 6;
+    ctx.save(); ctx.lineCap = 'round';
+    for (let i = 0; i < n; i += 1) {
+      const h1 = hash(i * 7 + 1), h2 = hash(i * 13 + 5);
+      // Fan of angles across the lower half and the sides (not straight up into the sky).
+      const a = -0.25 + ((h1 % 1000) / 1000) * (Math.PI + 0.5);
+      const phase = ((t / 1000) * rate * (0.7 + (h2 % 100) / 160) + (h2 % 1000) / 1000) % 1;
+      const p2 = phase * phase;
+      const r1 = 30 + p2 * 560, len = (18 + 140 * phase) * (0.45 + 0.75 * k);
+      const ca = Math.cos(a), sa = Math.sin(a) * 0.82;
+      const x1 = cx + ca * r1, y1 = cy + sa * r1, x2 = cx + ca * (r1 + len), y2 = cy + sa * (r1 + len);
+      ctx.globalAlpha = phase * (0.22 + 0.45 * k);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.8 + 2.6 * phase;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     }
     ctx.restore();
   }
 
+  // Light rain: thin slanted streaks plus small splash rings on the road. A drizzle from the start,
+  // a little heavier with each storm step. Deterministic per drop, no allocation.
+  function rain(state, t) {
+    if (state.timeMs === 0 && state.distance === 0) return;
+    const step = Number.isFinite(state.chaserStep) ? state.chaserStep : 0;
+    const n = 18 + step * 14, fall = 900 + step * 150;       // drops, px per second
+    ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = '#eaf6ff';
+    for (let i = 0; i < n; i += 1) {
+      const h1 = hash(i * 31 + 3), h2 = hash(i * 17 + 11);
+      const x0 = (h1 % 1000) / 1000 * (W + 120) - 60;
+      const y = (((t / 1000) * fall * (0.8 + (h2 % 40) / 100) + (h2 % 1000)) % (H + 80)) - 40;
+      const x = x0 - y * 0.22;                                 // wind slant
+      ctx.globalAlpha = 0.18 + 0.06 * step; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 22); ctx.stroke();
+    }
+    // Splashes: short-lived rings on the road surface.
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 6 + step * 4; i += 1) {
+      const h = hash(i * 53 + 7), cycle = 0.6 + (h % 30) / 100;
+      const ph = ((t / 1000) / cycle + (h % 100) / 100) % 1;
+      const round = Math.floor((t / 1000) / cycle + (h % 100) / 100);
+      const hr = hash(h + round * 977);
+      const sc = 0.2 + ((hr % 1000) / 1000) * 0.75, y = HOR + sc * (NEAR - HOR);
+      const x = W / 2 + ((((hr >> 10) % 1000) / 1000) * 2 - 1) * HALF * sc;
+      ctx.globalAlpha = (1 - ph) * 0.5;
+      ctx.beginPath(); ctx.ellipse(x, y, 2 + ph * 9 * sc * 2, 1 + ph * 3 * sc * 2, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Lightning: the storm throws bolts. Rare and far away (on the horizon) while it is out of sight,
+  // more often and closer to the road as it closes in. Bolt shapes are made once per strike.
+  function lightning(state, t, dt) {
+    const step = Number.isFinite(state.chaserStep) ? state.chaserStep : 0;
+    const live = !(state.timeMs === 0 && state.distance === 0) && !state.over && !(state.tutorial && !state.tutorial.done);
+    if (live) {
+      fx.nextStrike = (fx.nextStrike ?? 2500) - dt * 1000;
+      if (fx.nextStrike <= 0) {
+        const lo = [4200, 2200, 1100][Math.min(step, 2)], span = [3800, 2200, 1100][Math.min(step, 2)];
+        fx.nextStrike = lo + Math.random() * span;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const near = step === 0 ? 0.05 + Math.random() * 0.15 : 0.25 + step * 0.22 + Math.random() * 0.15;
+        const ty = HOR + 8 + near * (NEAR - HOR) * 0.55;
+        const tx = W / 2 + side * (0.62 + Math.random() * 0.5) * (HALF * ((ty - HOR) / (NEAR - HOR)) + 70);
+        const pts = []; let x = tx + side * -40 + (Math.random() - 0.5) * 80, y = -10;
+        const segs = 9;
+        for (let i = 0; i <= segs; i += 1) {
+          const f = i / segs;
+          pts.push([x + (tx - x) * f * f + (i && i < segs ? (Math.random() - 0.5) * 34 : 0), y + (ty - y) * f]);
+        }
+        const branches = [3, 5].map((bi) => {
+          const [bx, by] = pts[bi], dir = Math.random() < 0.5 ? -1 : 1, b = [[bx, by]];
+          for (let j = 1; j <= 3; j += 1) b.push([bx + dir * j * 14 + (Math.random() - 0.5) * 10, by + j * 22]);
+          return b;
+        });
+        fx.strikes.push({ pts, branches, life: 0.28, max: 0.28, near });
+        fx.flash = Math.max(fx.flash, 0.12 + near * 0.25);
+        fx.bolt = 120;                                         // the storm bank flashes too
+        if (onStrike) onStrike(near);
+      }
+    }
+    for (const st of fx.strikes) {
+      st.life -= dt;
+      const k = clamp(st.life / st.max, 0, 1), flick = k > 0.6 || (k > 0.25 && k < 0.45) ? 1 : 0.35;
+      const path = (pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); };
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.globalAlpha = k * flick;
+      ctx.strokeStyle = 'rgba(150,215,255,.9)'; ctx.lineWidth = 7 + st.near * 6; ctx.shadowColor = '#9fdcff'; ctx.shadowBlur = 22;
+      path(st.pts); st.branches.forEach(path);
+      ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 + st.near * 2;
+      path(st.pts); ctx.lineWidth = 1.2; st.branches.forEach(path);
+      // Impact glow on the ground.
+      const [ix, iy] = st.pts[st.pts.length - 1];
+      const g = ctx.createRadialGradient(ix, iy, 0, ix, iy, 40 + st.near * 50);
+      g.addColorStop(0, 'rgba(200,235,255,.9)'); g.addColorStop(1, 'rgba(200,235,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(ix - 100, iy - 100, 200, 200);
+      ctx.restore();
+    }
+    fx.strikes = fx.strikes.filter((st) => st.life > 0);
+  }
+
   return {
+    /** Called with 0..1 (how close) on each lightning strike, for thunder. */
+    set onStrike(fn) { onStrike = fn; },
     resize,
     setPalette,
     /** React to engine events with effects. */
@@ -365,6 +759,11 @@ export function createView(canvas) {
           fx.surge = 1;
         } else if (e.type === 'stumble') {
           fx.shake = e.cause === 'hit' ? 14 : 6; fx.surge = 1;
+        } else if (e.type === 'skip') {
+          // Hopped over a gem: a quick ring under the runner and a few sparks of its colour, low and short.
+          const p = proj(RUNNER_MZ), x = W / 2 + (fx.laneX - 1) * (HALF * 2 / 3) * p.s;
+          fx.rings = (fx.rings || []).concat([{ x, y: p.y - 30, color: GEMS[e.color][1], t: 0.35 }]);
+          for (let i = 0; i < 5; i += 1) fx.particles.push({ x, y: p.y - 30, vx: (i - 2) * 70, vy: -60 - Math.random() * 60, r: 5, color: e.color, life: 0.4, max: 0.4, rot: 0, vr: 6 });
         } else if (e.type === 'colors') {
           for (let i = 0; i < 18; i += 1) {
             const a = (i / 18) * Math.PI * 2;
@@ -385,12 +784,21 @@ export function createView(canvas) {
       ctx.setTransform(scale, 0, 0, scale, (w - W * scale) / 2, (h - H * scale) / 2);
       // Animate lane and decays.
       fx.laneX += (state.lane - fx.laneX) * Math.min(1, dt * 16);
+      // Run cycle: cadence rises with speed (~1.5 → 2.6 strides per second).
+      const sp = state.config.speed, speedNow = Math.min(sp.max, sp.base + sp.accelPerSec * state.timeMs / 1000);
+      if (state.stumbleMs === 0) fx.runPhase += dt * (1.1 + speedNow / 26);
+      const airNow = state.jumpMs !== null;
+      if (airNow && !fx.wasAir) fx.takeT = 1;
+      if (!airNow && fx.wasAir) fx.landT = 1;
+      fx.wasAir = airNow;
+      fx.takeT = Math.max(0, fx.takeT - dt * 12); fx.landT = Math.max(0, fx.landT - dt * 12);
+      fx.poseT = Math.max(0, fx.poseT - dt / 0.09);
       fx.slotPop = fx.slotPop.map((v) => Math.max(0, v - dt * 5));
       if (fx.drain) { fx.drain.t -= dt * 1000; if (fx.drain.t <= 0) fx.drain = null; }
       fx.surge = Math.max(0, fx.surge - dt * 1.5);
       fx.bolt = Math.max(0, fx.bolt - dt * 1000);
       if (fx.shake > 0) { ctx.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake); fx.shake = Math.max(0, fx.shake - dt * 40); }
-      sky(); scenery(state.distance); road(state); speedLines(state); items(state, t); storm(state, t); if (showHud) hud(state, best, t); effects(dt);
+      sky(state); scenery(state.distance); road(state); lightning(state, t, dt); drawDust(dt); items(state, t); slipstream(state, t); rain(state, t); storm(state, t); grade(state); if (showHud) { hud(state, best, t); hints(state, t); } effects(dt);
     },
   };
 }

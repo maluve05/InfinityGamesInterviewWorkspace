@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../public/src/config.js';
-import { createGame, step, tick, chainPoints, baseSpeed, jumpHeight, summary } from '../public/src/engine.js';
+import { createGame, step, tick, chainPoints, baseSpeed, jumpHeight, summary, fullJumpAirtime } from '../public/src/engine.js';
 
 const DT = 1000 / 60;
 const run = (state, ms) => {
@@ -20,7 +20,7 @@ const collect = (state, color) => run(withGem(state, color), 120);
 const quiet = (seed = 1) => { const s = createGame(CONFIG, seed); s.items = []; s.nextRowZ = 1e9; return s; };
 
 test('scoring table: 1–2 nothing, 3→100, 4→200, 5→300, 6→400', () => {
-  assert.deepEqual([1, 2, 3, 4, 5, 6].map((n) => chainPoints(CONFIG, n)), [0, 0, 100, 200, 300, 400]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((n) => chainPoints(CONFIG, n)), [0, 0, 1, 2, 3, 4].map((k) => k * CONFIG.chain.pointsPerStep));
 });
 
 test('same-colour gems build one chain', () => {
@@ -34,11 +34,29 @@ test('a different colour cashes in a 3+ chain with points and no stumble', () =>
   let s = quiet();
   for (let i = 0; i < 4; i += 1) s = collect(s, 'ember').state;
   const r = collect(s, 'tide');
-  assert.equal(r.state.score, 200);
+  assert.equal(r.state.score, 2 * CONFIG.chain.pointsPerStep);
   assert.equal(r.state.stumbles, 0);
   assert.deepEqual(r.state.chain, { color: 'tide', count: 1 });
   const m = r.events.find((e) => e.type === 'match');
   assert.equal(m.multiplier, 2);
+});
+
+test('scoring scales with speed as the runner gets faster (up to 2.5x)', () => {
+  let s = quiet();
+  s = collect(s, 'ember').state;
+  s = collect(s, 'ember').state;
+  s = collect(s, 'ember').state;
+  const baseRes = collect(s, 'tide');
+  assert.equal(baseRes.state.score, 1 * CONFIG.chain.pointsPerStep);
+
+  // At top speed (max speed = 2.5x base):
+  let sFast = quiet();
+  sFast.timeMs = 1e9;
+  sFast = collect(sFast, 'ember').state;
+  sFast = collect(sFast, 'ember').state;
+  sFast = collect(sFast, 'ember').state;
+  const fastRes = collect(sFast, 'tide');
+  assert.equal(fastRes.state.score, Math.round(1 * CONFIG.chain.pointsPerStep * 2.5));
 });
 
 test('breaking a 1–2 chain scores nothing and makes the runner stumble', () => {
@@ -54,12 +72,12 @@ test('breaking a 1–2 chain scores nothing and makes the runner stumble', () =>
 
 test('a 6-chain bursts on its own, scores 400 and pushes the chaser back', () => {
   let s = quiet();
-  s.gap = 10;
+  s.chaserStep = 2;
   for (let i = 0; i < 6; i += 1) s = collect(s, 'sun').state;
-  assert.equal(s.score, 400);
+  assert.equal(s.score, 4 * CONFIG.chain.pointsPerStep);
   assert.equal(s.maxChains, 1);
   assert.deepEqual(s.chain, { color: null, count: 0 });
-  assert.ok(s.gap > 10 + CONFIG.chain.maxStepBackM - 1, `gap ${s.gap}`);
+  assert.equal(s.chaserStep, 1);
 });
 
 test('a barrier stumbles a grounded runner but is cleared mid-jump', () => {
@@ -83,7 +101,8 @@ test('lanes stay within the road and the jump lands', () => {
   s = step(s, { type: 'right' }).state; s = step(s, { type: 'right' }).state; s = step(s, { type: 'right' }).state;
   assert.equal(s.lane, 2);
   s = step(s, { type: 'jump' }).state;
-  const r = run(s, CONFIG.jump.durationMs + 50);
+  const airtimeMs = fullJumpAirtime(CONFIG) * 1000;
+  const r = run(s, airtimeMs + 50);
   assert.equal(r.state.jumpMs, null);
   assert.ok(r.events.some((e) => e.type === 'land'));
 });
@@ -97,9 +116,12 @@ test('speed ramps up and is capped', () => {
 test('a runner who keeps stumbling gets caught', () => {
   let s = quiet();
   const events = [];
-  for (let i = 0; i < 4000 && !s.over; i += 1) {
-    if (s.stumbleMs === 0) s.stumbleMs = CONFIG.stumble.hitMs;
-    const r = tick(s, DT); s = r.state; events.push(...r.events);
+  for (let i = 0; i < 3 && !s.over; i += 1) {
+    s = structuredClone(s);
+    s.items.push({ id: 100 + i, kind: 'barrier', lane: s.lane, z: s.distance + 2 });
+    const r = run(s, 200);
+    s = r.state;
+    events.push(...r.events);
   }
   assert.equal(s.over, true);
   assert.equal(s.cause, 'caught');
@@ -110,7 +132,7 @@ test('a runner who keeps stumbling gets caught', () => {
 test('an idle runner who never stumbles is not caught in the first minute', () => {
   const r = run(quiet(), 60000);
   assert.equal(r.state.over, false);
-  assert.ok(r.state.gap > 0);
+  assert.equal(r.state.chaserStep, 0);
 });
 
 test('the track always has gems ahead, inside the lanes, never a fully blocked row', () => {
@@ -167,8 +189,10 @@ test('colours unlock by score: 3 at the start, 4 from 1,000, 5 from 3,000', () =
 });
 
 test('a run starts with only the first 3 colours on the track', () => {
+  // Unlocks pushed out of reach: this checks the starting palette, not the score pace.
+  const noUnlock = { ...CONFIG, colorUnlocks: [{ score: 0, count: 3 }, { score: 1e12, count: 4 }, { score: 2e12, count: 5 }] };
   for (const seed of [1, 2, 3]) {
-    let s = createGame(CONFIG, seed);
+    let s = createGame(noUnlock, seed);
     s = run(s, 20000).state;
     const used = new Set(s.items.filter((it) => it.kind === 'gem').map((it) => it.color));
     for (const col of used) assert.ok(CONFIG.colors.slice(0, 3).includes(col), `seed ${seed}: ${col}`);
@@ -215,9 +239,10 @@ test('a runner who follows the thread can always build a 3+ chain', () => {
   assert.ok(longest >= CONFIG.chain.minScore, `longest reachable chain ${longest}`);
 });
 
-test('the storm starts at full distance and slowly closes in', () => {
+test('the storm starts at step 0 and stays at 0 when running quietly', () => {
   const s = createGame(CONFIG, 1);
-  assert.equal(s.gap, CONFIG.chaser.maxGapM);
+  assert.equal(s.chaserStep, 0);
   const later = run(quiet(), 20000).state;
-  assert.ok(later.gap < CONFIG.chaser.maxGapM && later.gap > CONFIG.chaser.maxGapM * 0.5, `gap ${later.gap}`);
+  assert.equal(later.chaserStep, 0);
+  assert.equal(later.over, false);
 });

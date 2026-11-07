@@ -38,6 +38,7 @@ test('defaults when nothing is saved', () => {
     best: 0,
     runs: 0,
     settings: { sound: true },
+    tutorialDone: false,
   });
 });
 
@@ -78,6 +79,7 @@ test('reset() returns defaults', () => {
     best: 0,
     runs: 0,
     settings: { sound: true },
+    tutorialDone: false,
   });
   const loaded = load();
   assert.deepEqual(loaded, {
@@ -85,6 +87,7 @@ test('reset() returns defaults', () => {
     best: 0,
     runs: 0,
     settings: { sound: true },
+    tutorialDone: false,
   });
   assert.equal(fake.getItem(STORAGE_KEY), null);
 });
@@ -101,6 +104,7 @@ test('corrupt JSON in storage returns defaults without throwing', () => {
     best: 0,
     runs: 0,
     settings: { sound: true },
+    tutorialDone: false,
   });
 });
 
@@ -120,6 +124,7 @@ test('an unknown version keeps best but resets the rest', () => {
   assert.equal(loaded.version, VERSION);
   assert.equal(loaded.runs, 0);
   assert.equal(loaded.settings.sound, true);
+  assert.equal(loaded.tutorialDone, false);
   assert.equal(loaded.extraOldField, undefined);
 });
 
@@ -132,6 +137,7 @@ test('works with no localStorage at all (memory fallback)', () => {
     best: 0,
     runs: 0,
     settings: { sound: true },
+    tutorialDone: false,
   });
   save({ best: 300, runs: 2, settings: { sound: false } });
   const loaded = load();
@@ -146,6 +152,7 @@ test('works with no localStorage at all (memory fallback)', () => {
     best: 0,
     runs: 0,
     settings: { sound: true },
+    tutorialDone: false,
   });
 });
 
@@ -194,5 +201,26 @@ test('a localStorage whose methods throw does not throw', () => {
     save({ best: 10 });
     reset();
   });
+});
+
+test('storage: defaults include tutorialDone: false, old saves load false, round-trips true', () => {
+  // 1. Defaults include tutorialDone: false
+  const def = load();
+  assert.equal(def.tutorialDone, false);
+
+  // 2. Old save without the field loads false
+  const fake = createFakeLocalStorage({
+    [STORAGE_KEY]: JSON.stringify({ version: VERSION, best: 500, runs: 4, settings: { sound: true } }),
+  });
+  globalThis.localStorage = fake;
+  const oldLoaded = load();
+  assert.equal(oldLoaded.tutorialDone, false);
+  assert.equal(oldLoaded.best, 500);
+
+  // 3. Save / load round-trips true
+  save({ tutorialDone: true, best: 600 });
+  const reloaded = load();
+  assert.equal(reloaded.tutorialDone, true);
+  assert.equal(reloaded.best, 600);
 });
 
