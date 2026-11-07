@@ -34,7 +34,10 @@ exists), `PLAN.md` and `TASKS.md`. Check `processes/` for an existing workflow a
 - **Gemini (Antigravity IDE, 3.8 Flash High) is the worker.** It takes bounded,
   non-visual tasks through the mailbox `claude antigravity and others/`: tests,
   data files, research, asset conversion, log export, first drafts of written
-  answers. Claude writes `tasks/T<n>.md`; the owner tells the worker "claude has
+  answers, and **all game-engine and algorithmic changes** (rules, track
+  generation, tuning and balance in `engine.js` / `config.js`). Claude's own code
+  is only about how the game looks; it specifies engine work as a task with
+  acceptance checks and reviews the result (owner, 2026-11-07). Claude writes `tasks/T<n>.md`; the owner tells the worker "claude has
   work for you"; the worker writes `reports/T<n>.md` and touches only the files
   its task lists. Any other agent used as a worker (Antigravity CLI, Freebuff)
   follows the same folder's README.

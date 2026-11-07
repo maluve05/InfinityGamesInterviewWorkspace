@@ -1,0 +1,42 @@
+/* Chroma Rush — design tokens, locked 14:43 from the two Figma Play frames.
+   One layout; two palettes. The run starts in Daylight (Paper Daylight) and drifts
+   into Dusk (Neon Dusk) and back as distance grows — the "setting" change. */
+:root {
+  /* Type */
+  --font-display: 'Unbounded', 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-ui: 'Space Grotesk', system-ui, sans-serif;
+
+  /* Stage */
+  --stage-w: 405px; --stage-h: 720px; --stage-radius: 30px;
+  --page-day: #efe6d6; --page-dusk: #0b0a14;
+
+  /* Daylight (setting start) */
+  --day-sky-0: #bfe3e6; --day-sky-1: #f6e7c8; --day-sky-2: #ffd6a3;
+  --day-ground-0: #e9c48f; --day-ground-1: #e2b97f;
+  --day-road-0: #d0694a; --day-road-1: #c45f42;
+  --day-edge: #fff4e0; --day-lane: #ffe5c9; --day-fog: #fff3dc; --day-scenery: #f2cf95;
+  --day-ink: #2b2a3a; --day-muted: #7b6f66; --day-panel: rgba(255,250,240,.86); --day-slot: rgba(43,42,58,.14);
+  --day-storm: #2a3566; --day-cloud: #3d4a7a; --day-bolt: #bfe3e6; --day-barrier: #3d4a7a;
+  --day-cta: #2b2a3a; --day-cta-ink: #fff4e0;
+
+  /* Dusk (later in the run) */
+  --dusk-sky-0: #120f2b; --dusk-sky-1: #3b1d4a; --dusk-sky-2: #ff7a59;
+  --dusk-ground-0: #16132a; --dusk-ground-1: #1b1733;
+  --dusk-road-0: #1d1a36; --dusk-road-1: #25213f;
+  --dusk-edge: #33f0d0; --dusk-lane: #8c86c9; --dusk-fog: #ff8e6b; --dusk-scenery: #1a1236;
+  --dusk-ink: #f6f2ea; --dusk-muted: #a49fc4; --dusk-panel: rgba(14,12,30,.72); --dusk-slot: rgba(255,255,255,.14);
+  --dusk-storm: #120a24; --dusk-cloud: #2c1748; --dusk-bolt: #c9a6ff; --dusk-barrier: #2a2350;
+  --dusk-cta: #33f0d0; --dusk-cta-ink: #0b0a14;
+
+  /* Gems: light / base / deep / edge. Shape per colour: ember ◆, tide ●, leaf ▲, sun ⬢, plum ★ */
+  --ember: #ffd0c2 #ff4d5e #a3142f #ffb3a8;
+  --tide:  #d4f6ff #2fb6ff #0c4e9c #a8e6ff;
+  --leaf:  #e2ffd0 #5be36a #167a3a #b9f7a8;
+  --sun:   #fff6c9 #ffc531 #b86a00 #ffe58a;
+  --plum:  #f3e1ff #b25cff #5a1a9c #ddb8ff; /* 5th colour, unlocks at 3,000 (playtest 1) */
+
+  /* Motion */
+  --ease-pop: cubic-bezier(.34,1.56,.64,1);   /* chain slot fill, 180 ms */
+  --ease-soft: cubic-bezier(.22,1,.36,1);     /* lane change, 140 ms */
+  --t-slot: 180ms; --t-lane: 140ms; --slowmo-6chain: 400ms;
+}

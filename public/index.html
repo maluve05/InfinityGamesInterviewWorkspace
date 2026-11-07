@@ -3,14 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Coming soon</title>
+  <title>Chroma Rush</title>
+  <meta name="description" content="A three-lane runner where your route is a colour chain. Prototype by Malvin Chitswamatombo for Infinity Games.">
   <link rel="icon" href="data:,">
-  <style>
-    html, body { height: 100%; margin: 0; }
-    body { display: grid; place-items: center; background: #f4f3ef; color: #6b6a66; font: 16px/1.4 system-ui, sans-serif; }
-  </style>
+  <link rel="preload" href="assets/fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
-  <p>Prototype coming soon.</p>
+  <main class="page">
+    <div class="stage" id="stage">
+      <canvas id="view" width="405" height="720" aria-label="Chroma Rush game"></canvas>
+
+      <section data-screen="start" class="overlay start">
+        <h1 class="title"><span>CHROMA</span><span class="accent">RUSH</span></h1>
+        <div class="rule" aria-label="Collect three or more of one colour to score; six bursts">
+          <span class="rule-gems"><i class="g ember"></i><i class="g ember"></i><i class="g ember"></i></span>
+          <span class="rule-arrow">→</span><b>+100</b>
+          <span class="rule-gems six"><i class="g sun"></i><i class="g sun"></i><i class="g sun"></i><i class="g sun"></i><i class="g sun"></i><i class="g sun"></i></span>
+          <span class="rule-arrow">→</span><b>×4</b>
+        </div>
+        <button class="play" id="play" aria-label="Play"><svg viewBox="0 0 40 40"><polygon points="13,9 31,20 13,31"/></svg></button>
+        <div class="keys">
+          <div><kbd>←</kbd><kbd>→</kbd><small>LANE</small></div>
+          <div><kbd class="wide">SPACE</kbd><small>JUMP</small></div>
+        </div>
+      </section>
+
+      <section data-screen="end" class="overlay end">
+        <p class="caught" id="caught">CAUGHT AT 0 M</p>
+        <p class="final" id="final">0</p>
+        <p class="newbest" id="newbest">NEW BEST</p>
+        <div class="stats">
+          <div><i class="g sun"></i><b id="st-six">0</b><small>6-CHAINS</small></div>
+          <div><i class="g ember"></i><b id="st-match">0</b><small>MATCHES</small></div>
+          <div><i class="g tide"></i><b id="st-best">0</b><small>BEST</small></div>
+        </div>
+        <button class="again" id="again">RUN AGAIN</button>
+        <p class="hint">or press SPACE</p>
+      </section>
+
+      <section data-screen="pause" class="overlay pause">
+        <p class="final">PAUSED</p>
+        <button class="again" id="resume">RESUME</button>
+        <p class="hint">Esc to resume</p>
+      </section>
+
+      <button class="mute" id="mute" aria-label="Sound on/off" title="Sound (M)"></button>
+    </div>
+  </main>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

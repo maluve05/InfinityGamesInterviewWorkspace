@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Unbounded;src:url(fonts/unbounded-latin-700-normal.woff2)}
+@font-face{font-family:Bricolage;font-weight:800;src:url(fonts/bricolage-grotesque-latin-800-normal.woff2)}
+@font-face{font-family:Bricolage;font-weight:400;src:url(fonts/bricolage-grotesque-latin-400-normal.woff2)}
+@font-face{font-family:SpaceG;font-weight:700;src:url(fonts/space-grotesk-latin-700-normal.woff2)}
+@font-face{font-family:SpaceG;font-weight:500;src:url(fonts/space-grotesk-latin-500-normal.woff2)}
+html,body{margin:0;width:1440px;height:900px;overflow:hidden}
+body{background:var(--page);color:var(--ink);font-family:SpaceG,Inter,sans-serif}
+header{position:absolute;left:56px;top:34px;right:56px;display:flex;justify-content:space-between;align-items:baseline}
+h1{margin:0;font:var(--h1font);letter-spacing:.02em}
+header p{margin:0;max-width:640px;text-align:right;font-size:14px;line-height:1.5;opacity:.75}
+.row{position:absolute;top:118px;left:0;right:0;display:flex;justify-content:center;gap:48px}
+figure{margin:0}
+figure svg{display:block;border-radius:30px;box-shadow:var(--shadow)}
+figcaption{margin-top:12px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;opacity:.6;text-align:center}
+.display{font-family:var(--display);font-weight:800}.num{font-family:var(--num);font-weight:700}.lbl{font-family:SpaceG;font-weight:700;letter-spacing:.12em}
+svg{width:405px;height:720px}
+.row figure{transform:scale(.97);transform-origin:top center}
+</style></head><body>
+<header><h1 id="name"></h1><p id="note"></p></header>
+<div class="row"><figure><div id="start"></div><figcaption>Start</figcaption></figure><figure><div id="play"></div><figcaption>Play · 4-chain, ×2 building, storm at 62%</figcaption></figure><figure><div id="end"></div><figcaption>End · caught</figcaption></figure></div>
+<script src="theme.js"></script>
+<script>document.getElementById('name').textContent=THEME.name;document.getElementById('note').textContent=THEME.note;
+for(const [k,v] of Object.entries(THEME.css))document.documentElement.style.setProperty(k,v);</script>
+<script src="mock.js"></script></body></html>

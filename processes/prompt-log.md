@@ -20,10 +20,15 @@ keys are redacted). Run it at the end, so it captures the final state.
 `npm run logs:claude` exports every Claude Code session that ran in this folder
 to `logs/claude/` as readable Markdown plus the raw `.jsonl` (the complete record,
 including tool calls and results). The npm script exports only sessions with
-activity from **2026-11-07 13:30** on (owner's decision: setup work is not part of
-the log). So **start a fresh Claude
-Code session in this folder on the day** — a reused preparation session would be
-exported whole. Every value in `.env` is replaced with `[redacted NAME]` in both
+activity from **2026-11-07 13:27** on. Owner's decision (13:44): the assessment-day
+session started at 13:27 with the final setup check and continues through the
+window — it is logged whole, setup included; no fresh session.
+
+**The 13:27 session runs in the cloud** (Claude app, linked to this PC), so its
+transcript is not under `~/.claude/projects` here and `npm run logs:claude` cannot
+see it. Claude exports it itself with the same script and redaction into
+`logs/claude/2026-11-07-13-27_<session>.md` + `.jsonl`, and refreshes it at the
+freeze — ask Claude: "export your session log". Every value in `.env` is replaced with `[redacted NAME]` in both
 files, and the export fails if one survives. Sub-agent work appears inside the session transcript.
 
 ## 3. Gemini worker (Antigravity CLI)

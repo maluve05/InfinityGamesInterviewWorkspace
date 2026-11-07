@@ -12,4 +12,7 @@ or `blocked` / `failed` with the reason.
 
 | Task | Title | For | Status | Notes |
 | --- | --- | --- | --- | --- |
-| | _Empty until the window opens._ | | | |
+| T1 | Sound list (ElevenLabs prompts per event) | antigravity | done | Claude reviewed 14:55: all events covered; prompts usable |
+| T2 | Storage tests | antigravity | done | Claude re-ran: 22/22 pass; only tests/storage.test.mjs written |
+| T3 | Dino-style jump + barrier gap rule | antigravity | todo | Owner playtest 2: not enough space between jumps |
+| T4 | Tutorial run (engine + save flag) | antigravity | todo | After T3 (same files); Claude draws the hints |

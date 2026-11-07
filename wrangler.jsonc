@@ -12,5 +12,13 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "single-page-application"
-  }
+  },
+  // Set up 2026-11-07 before the window. Unused until a Worker script ("main") reads
+  // them; an assets-only deploy with these bindings passes `wrangler deploy --dry-run`.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "infinitytelemetry", "database_id": "ca0dc333-a2ef-489b-9f3e-c1c120c451ca" }
+  ],
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "infinity-assets" }
+  ]
 }

@@ -17,9 +17,8 @@ build so the last hour stays free for anything that goes wrong.
       small fence probe — `processes/worker-dispatch.md`).
 - [ ] Figma open on the student account. Loom (or recorder) ready, mic tested.
 - [ ] Email draft open with headings: link, video, prompt log, written answers.
-- [ ] Open a **fresh** Claude Code session in this folder (not a preparation
-      session — `npm run logs` exports whole sessions). Note the exact start time
-      in `PLAN.md`.
+- [x] Claude session for the day: the cloud session started 13:27 (owner's
+      decision — logged whole, setup included; see `processes/prompt-log.md` §2).
 
 **Who runs during the window:** only Claude Code (lead, in this folder) and the
 Antigravity IDE as the worker, through the mailbox `claude antigravity and others/`.
